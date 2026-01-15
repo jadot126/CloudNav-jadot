@@ -2242,8 +2242,8 @@ function App() {
 
   return (
     <div className="flex h-screen overflow-hidden text-slate-900 dark:text-slate-50">
-      {/* 认证遮罩层 - 当需要认证时显示 */}
-      {requiresAuth && !authToken && (
+      {/* 认证遮罩层 - 仅在当前视图需要认证时显示（允许访问首页与公开目录） */}
+      {requiresAuth && !authToken && requiresAuthForCategory(selectedCategory) && (
         <div className="fixed inset-0 z-50 bg-white dark:bg-slate-900 flex items-center justify-center">
           <div className="w-full max-w-md p-6">
             <div className="text-center mb-8">
@@ -2254,7 +2254,7 @@ function App() {
                 需要身份验证
               </h1>
               <p className="text-slate-600 dark:text-slate-400">
-                此导航页面需要验证，请输入管理员密码
+                此目录受保护，请输入管理员密码以继续
               </p>
             </div>
             <AuthModal isOpen={true} onLogin={handleLogin} />
@@ -2262,887 +2262,885 @@ function App() {
         </div>
       )}
 
-      {/* 主要内容 - 只有在不需要认证或已认证时显示 */}
-      {(!requiresAuth || authToken) && (
-        <>
-          <AuthModal isOpen={isAuthOpen} onLogin={handleLogin} />
+      {/* 主要内容 - 允许访问公开目录与首页（即使站点包含受保护的内容） */}
+      <>
+        <AuthModal isOpen={isAuthOpen} onLogin={handleLogin} />
 
-          <CategoryAuthModal
-            isOpen={!!catAuthModalData}
-            category={catAuthModalData}
-            categories={categories}
-            onClose={() => setCatAuthModalData(null)}
-            onUnlock={handleUnlockCategory}
+        <CategoryAuthModal
+          isOpen={!!catAuthModalData}
+          category={catAuthModalData}
+          categories={categories}
+          onClose={() => setCatAuthModalData(null)}
+          onUnlock={handleUnlockCategory}
+        />
+
+        <CategoryManagerModal
+          isOpen={isCatManagerOpen}
+          onClose={() => setIsCatManagerOpen(false)}
+          categories={categories}
+          onUpdateCategories={handleUpdateCategories}
+          onDeleteCategory={handleDeleteCategory}
+          onVerifyPassword={authToken ? undefined : handleCategoryActionAuth}
+        />
+
+        <BackupModal
+          isOpen={isBackupModalOpen}
+          onClose={() => setIsBackupModalOpen(false)}
+          links={links}
+          categories={categories}
+          onRestore={handleRestoreBackup}
+          webDavConfig={webDavConfig}
+          onSaveWebDavConfig={handleSaveWebDavConfig}
+          searchConfig={{ mode: searchMode, externalSources: externalSearchSources }}
+          onRestoreSearchConfig={handleRestoreSearchConfig}
+          aiConfig={aiConfig}
+          onRestoreAIConfig={handleRestoreAIConfig}
+        />
+
+        <ImportModal
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          existingLinks={links}
+          categories={categories}
+          onImport={handleImportConfirm}
+          onImportSearchConfig={handleRestoreSearchConfig}
+          onImportAIConfig={handleRestoreAIConfig}
+        />
+
+        <SettingsModal
+          isOpen={isSettingsModalOpen}
+          onClose={() => setIsSettingsModalOpen(false)}
+          config={aiConfig}
+          siteSettings={siteSettings}
+          onSave={handleSaveAIConfig}
+          links={links}
+          categories={categories}
+          onUpdateLinks={(newLinks) => updateData(newLinks, categories)}
+          authToken={authToken}
+        />
+
+        <SearchConfigModal
+          isOpen={isSearchConfigModalOpen}
+          onClose={() => setIsSearchConfigModalOpen(false)}
+          sources={externalSearchSources}
+          onSave={(sources) => handleSaveSearchConfig(sources, searchMode)}
+        />
+
+        {/* Sidebar Mobile Overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-20 bg-black/50 lg:hidden backdrop-blur-sm"
+            onClick={() => setSidebarOpen(false)}
           />
+        )}
 
-          <CategoryManagerModal
-            isOpen={isCatManagerOpen}
-            onClose={() => setIsCatManagerOpen(false)}
-            categories={categories}
-            onUpdateCategories={handleUpdateCategories}
-            onDeleteCategory={handleDeleteCategory}
-            onVerifyPassword={authToken ? undefined : handleCategoryActionAuth}
-          />
-
-          <BackupModal
-            isOpen={isBackupModalOpen}
-            onClose={() => setIsBackupModalOpen(false)}
-            links={links}
-            categories={categories}
-            onRestore={handleRestoreBackup}
-            webDavConfig={webDavConfig}
-            onSaveWebDavConfig={handleSaveWebDavConfig}
-            searchConfig={{ mode: searchMode, externalSources: externalSearchSources }}
-            onRestoreSearchConfig={handleRestoreSearchConfig}
-            aiConfig={aiConfig}
-            onRestoreAIConfig={handleRestoreAIConfig}
-          />
-
-          <ImportModal
-            isOpen={isImportModalOpen}
-            onClose={() => setIsImportModalOpen(false)}
-            existingLinks={links}
-            categories={categories}
-            onImport={handleImportConfirm}
-            onImportSearchConfig={handleRestoreSearchConfig}
-            onImportAIConfig={handleRestoreAIConfig}
-          />
-
-          <SettingsModal
-            isOpen={isSettingsModalOpen}
-            onClose={() => setIsSettingsModalOpen(false)}
-            config={aiConfig}
-            siteSettings={siteSettings}
-            onSave={handleSaveAIConfig}
-            links={links}
-            categories={categories}
-            onUpdateLinks={(newLinks) => updateData(newLinks, categories)}
-            authToken={authToken}
-          />
-
-          <SearchConfigModal
-            isOpen={isSearchConfigModalOpen}
-            onClose={() => setIsSearchConfigModalOpen(false)}
-            sources={externalSearchSources}
-            onSave={(sources) => handleSaveSearchConfig(sources, searchMode)}
-          />
-
-          {/* Sidebar Mobile Overlay */}
-          {sidebarOpen && (
-            <div
-              className="fixed inset-0 z-20 bg-black/50 lg:hidden backdrop-blur-sm"
-              onClick={() => setSidebarOpen(false)}
-            />
-          )}
-
-          {/* Sidebar */}
-          <aside
-            className={`
+        {/* Sidebar */}
+        <aside
+          className={`
           fixed lg:static inset-y-0 left-0 z-30 w-64 transform transition-transform duration-300 ease-in-out
           bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
-          >
-            {/* Logo */}
-            <div className="h-16 flex items-center px-6 border-b border-slate-100 dark:border-slate-700 shrink-0">
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-                {siteSettings.navTitle || 'CloudNav'}
-              </span>
-            </div>
+        >
+          {/* Logo */}
+          <div className="h-16 flex items-center px-6 border-b border-slate-100 dark:border-slate-700 shrink-0">
+            <span className="text-xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+              {siteSettings.navTitle || 'CloudNav'}
+            </span>
+          </div>
 
-            {/* Categories List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide">
-              <Link
-                to="/"
-                onClick={() => setSidebarOpen(false)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${selectedCategory === 'all'
-                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-                  }`}
-              >
-                <div className="p-1"><Icon name="LayoutGrid" size={18} /></div>
-                <span>网站直达</span>
-              </Link>
+          {/* Categories List */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide">
+            <Link
+              to="/"
+              onClick={() => setSidebarOpen(false)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${selectedCategory === 'all'
+                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+            >
+              <div className="p-1"><Icon name="LayoutGrid" size={18} /></div>
+              <span>网站直达</span>
+            </Link>
 
-              <Link
-                to="/top"
-                onClick={() => setSidebarOpen(false)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${selectedCategory === 'pinned'
-                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-                  }`}
-              >
-                <div className="p-1"><Pin size={18} /></div>
-                <span>置顶收藏</span>
-              </Link>
+            <Link
+              to="/top"
+              onClick={() => setSidebarOpen(false)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${selectedCategory === 'pinned'
+                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+            >
+              <div className="p-1"><Pin size={18} /></div>
+              <span>置顶收藏</span>
+            </Link>
 
-              <div className="flex items-center justify-between pt-4 pb-2 px-4">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">分类目录</span>
-                {authToken ? (
-                  <button
-                    onClick={() => setIsCatManagerOpen(true)}
-                    className="p-1 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-                    title="管理分类"
-                  >
-                    <Settings size={14} />
-                  </button>
-                ) : null}
-              </div>
-
-              {/* 渲染嵌套分组树 */}
-              {categoryTree.map(node => (
-                <CategoryTreeItem
-                  key={node.id}
-                  node={node}
-                  selectedCategory={selectedCategory}
-                  unlockedCategoryIds={unlockedCategoryIds}
-                  expandedCategories={expandedCategories}
-                  onToggleExpand={toggleCategoryExpand}
-                  onCategoryClick={handleCategoryClick}
-                  getCategoryPath={getCategoryPath}
-                  setSidebarOpen={setSidebarOpen}
-                />
-              ))}
-            </div>
-
-            {/* Footer Actions */}
-            <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
-
+            <div className="flex items-center justify-between pt-4 pb-2 px-4">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">分类目录</span>
               {authToken ? (
-                <div className="grid grid-cols-3 gap-2 mb-2">
-                  <button
-                    onClick={() => { if (!authToken) setIsAuthOpen(true); else setIsImportModalOpen(true); }}
-                    className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
-                    title="导入书签"
-                  >
-                    <Upload size={14} />
-                    <span>导入</span>
-                  </button>
-
-                  <button
-                    onClick={() => { if (!authToken) setIsAuthOpen(true); else setIsBackupModalOpen(true); }}
-                    className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
-                    title="备份与恢复"
-                  >
-                    <CloudCog size={14} />
-                    <span>备份</span>
-                  </button>
-
-                  <button
-                    onClick={() => { if (!authToken) setIsAuthOpen(true); else setIsSettingsModalOpen(true); }}
-                    className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
-                    title="AI 设置"
-                  >
-                    <Settings size={14} />
-                    <span>设置</span>
-                  </button>
-                </div>
-              ) : null}
-
-              <div className="flex items-center justify-between text-xs px-2 mt-2">
-                <div className="flex items-center gap-1 text-slate-400">
-                  {syncStatus === 'saving' && <Loader2 className="animate-spin w-3 h-3 text-blue-500" />}
-                  {syncStatus === 'saved' && <CheckCircle2 className="w-3 h-3 text-green-500" />}
-                  {syncStatus === 'error' && <AlertCircle className="w-3 h-3 text-red-500" />}
-                  {authToken ? <span className="text-green-600">已同步</span> : <span className="text-amber-500">离线</span>}
-                </div>
-
-                <a
-                  href={GITHUB_REPO_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                  title="Fork this project on GitHub"
+                <button
+                  onClick={() => setIsCatManagerOpen(true)}
+                  className="p-1 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                  title="管理分类"
                 >
-                  <GitFork size={14} />
-                  <span>Fork 项目 v1.7</span>
-                </a>
-              </div>
+                  <Settings size={14} />
+                </button>
+              ) : null}
             </div>
-          </aside>
 
-          {/* Main Content */}
-          <main className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-slate-900 overflow-hidden relative">
+            {/* 渲染嵌套分组树 */}
+            {categoryTree.map(node => (
+              <CategoryTreeItem
+                key={node.id}
+                node={node}
+                selectedCategory={selectedCategory}
+                unlockedCategoryIds={unlockedCategoryIds}
+                expandedCategories={expandedCategories}
+                onToggleExpand={toggleCategoryExpand}
+                onCategoryClick={handleCategoryClick}
+                getCategoryPath={getCategoryPath}
+                setSidebarOpen={setSidebarOpen}
+              />
+            ))}
+          </div>
 
-            {/* Header */}
-            <header className="h-16 px-4 lg:px-8 flex items-center justify-between bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shrink-0">
-              <div className="flex items-center gap-4 flex-1">
-                <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 -ml-2 text-slate-600 dark:text-slate-300">
-                  <Menu size={24} />
+          {/* Footer Actions */}
+          <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
+
+            {authToken ? (
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                <button
+                  onClick={() => { if (!authToken) setIsAuthOpen(true); else setIsImportModalOpen(true); }}
+                  className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
+                  title="导入书签"
+                >
+                  <Upload size={14} />
+                  <span>导入</span>
                 </button>
 
-                {/* 搜索模式切换 + 搜索框 */}
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  {/* 移动端搜索图标 - 仅在手机端显示，平板端隐藏 */}
-                  <button
+                <button
+                  onClick={() => { if (!authToken) setIsAuthOpen(true); else setIsBackupModalOpen(true); }}
+                  className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
+                  title="备份与恢复"
+                >
+                  <CloudCog size={14} />
+                  <span>备份</span>
+                </button>
+
+                <button
+                  onClick={() => { if (!authToken) setIsAuthOpen(true); else setIsSettingsModalOpen(true); }}
+                  className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
+                  title="AI 设置"
+                >
+                  <Settings size={14} />
+                  <span>设置</span>
+                </button>
+              </div>
+            ) : null}
+
+            <div className="flex items-center justify-between text-xs px-2 mt-2">
+              <div className="flex items-center gap-1 text-slate-400">
+                {syncStatus === 'saving' && <Loader2 className="animate-spin w-3 h-3 text-blue-500" />}
+                {syncStatus === 'saved' && <CheckCircle2 className="w-3 h-3 text-green-500" />}
+                {syncStatus === 'error' && <AlertCircle className="w-3 h-3 text-red-500" />}
+                {authToken ? <span className="text-green-600">已同步</span> : <span className="text-amber-500">离线</span>}
+              </div>
+
+              <a
+                href={GITHUB_REPO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                title="Fork this project on GitHub"
+              >
+                <GitFork size={14} />
+                <span>Fork 项目 v1.7</span>
+              </a>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-slate-900 overflow-hidden relative">
+
+          {/* Header */}
+          <header className="h-16 px-4 lg:px-8 flex items-center justify-between bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shrink-0">
+            <div className="flex items-center gap-4 flex-1">
+              <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 -ml-2 text-slate-600 dark:text-slate-300">
+                <Menu size={24} />
+              </button>
+
+              {/* 搜索模式切换 + 搜索框 */}
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                {/* 移动端搜索图标 - 仅在手机端显示，平板端隐藏 */}
+                <button
+                  onClick={() => {
+                    setIsMobileSearchOpen(!isMobileSearchOpen);
+                    // 手机端点击搜索图标时默认使用站外搜索
+                    if (searchMode !== 'external') {
+                      handleSearchModeChange('external');
+                    }
+                  }}
+                  className="sm:flex md:hidden lg:hidden p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+                  title="搜索"
+                >
+                  <Search size={20} />
+                </button>
+
+                {/* 搜索模式切换 - 平板端和桌面端显示，手机端隐藏 */}
+                <div className="hidden sm:hidden md:flex lg:flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-full p-1">
+                    <button
+                      onClick={() => handleSearchModeChange('internal')}
+                      className={`px-3 py-1 text-xs font-medium rounded-full transition-all flex items-center justify-center min-h-[24px] min-w-[40px] ${searchMode === 'internal'
+                        ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100'
+                        }`}
+                      title="站内搜索"
+                    >
+                      站内
+                    </button>
+                    <button
+                      onClick={() => handleSearchModeChange('external')}
+                      className={`px-3 py-1 text-xs font-medium rounded-full transition-all flex items-center justify-center min-h-[24px] min-w-[40px] ${searchMode === 'external'
+                        ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100'
+                        }`}
+                      title="站外搜索"
+                    >
+                      站外
+                    </button>
+                  </div>
+
+                  {/* 搜索配置管理按钮 */}
+                  {searchMode === 'external' && (
+                    <button
+                      onClick={() => setIsSearchConfigModalOpen(true)}
+                      className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+                      title="管理搜索源"
+                    >
+                      <Settings size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* 搜索框 */}
+                <div className={`relative w-full max-w-lg ${isMobileSearchOpen ? 'block' : 'hidden'} sm:block`}>
+                  {/* 搜索源选择弹出窗口 */}
+                  {searchMode === 'external' && showSearchSourcePopup && (
+                    <div
+                      className="absolute left-0 top-full mt-2 w-full bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 p-3 z-50"
+                      onMouseEnter={() => setIsPopupHovered(true)}
+                      onMouseLeave={() => setIsPopupHovered(false)}
+                    >
+                      <div className="grid grid-cols-5 sm:grid-cols-5 gap-2">
+                        {externalSearchSources
+                          .filter(source => source.enabled)
+                          .map((source, index) => (
+                            <button
+                              key={index}
+                              onClick={() => handleSearchSourceSelect(source)}
+                              onMouseEnter={() => setHoveredSearchSource(source)}
+                              onMouseLeave={() => setHoveredSearchSource(null)}
+                              className="px-2 py-2 text-sm rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center gap-1 justify-center"
+                            >
+                              <img
+                                src={`https://www.faviconextractor.com/favicon/${new URL(source.url).hostname}?larger=true`}
+                                alt={source.name}
+                                className="w-4 h-4"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLXNlYXJjaCI+PHBhdGggZD0ibTIxIDIxLTQuMzQtNC4zNCI+PC9wYXRoPjxjaXJjbGUgY3g9IjExIiBjeT0iMTEiIHI9IjgiPjwvY2lyY2xlPjwvc3ZnPg==';
+                                }}
+                              />
+                              <span className="truncate hidden sm:inline">{source.name}</span>
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 搜索图标 */}
+                  <div
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 cursor-pointer"
+                    onMouseEnter={() => searchMode === 'external' && setIsIconHovered(true)}
+                    onMouseLeave={() => setIsIconHovered(false)}
                     onClick={() => {
-                      setIsMobileSearchOpen(!isMobileSearchOpen);
-                      // 手机端点击搜索图标时默认使用站外搜索
-                      if (searchMode !== 'external') {
-                        handleSearchModeChange('external');
+                      // 移动端点击事件：显示搜索源选择窗口
+                      if (searchMode === 'external') {
+                        setShowSearchSourcePopup(!showSearchSourcePopup);
                       }
                     }}
-                    className="sm:flex md:hidden lg:hidden p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
-                    title="搜索"
                   >
-                    <Search size={20} />
-                  </button>
-
-                  {/* 搜索模式切换 - 平板端和桌面端显示，手机端隐藏 */}
-                  <div className="hidden sm:hidden md:flex lg:flex items-center gap-2 flex-shrink-0">
-                    <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-full p-1">
-                      <button
-                        onClick={() => handleSearchModeChange('internal')}
-                        className={`px-3 py-1 text-xs font-medium rounded-full transition-all flex items-center justify-center min-h-[24px] min-w-[40px] ${searchMode === 'internal'
-                          ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm'
-                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100'
-                          }`}
-                        title="站内搜索"
-                      >
-                        站内
-                      </button>
-                      <button
-                        onClick={() => handleSearchModeChange('external')}
-                        className={`px-3 py-1 text-xs font-medium rounded-full transition-all flex items-center justify-center min-h-[24px] min-w-[40px] ${searchMode === 'external'
-                          ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm'
-                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100'
-                          }`}
-                        title="站外搜索"
-                      >
-                        站外
-                      </button>
-                    </div>
-
-                    {/* 搜索配置管理按钮 */}
-                    {searchMode === 'external' && (
-                      <button
-                        onClick={() => setIsSearchConfigModalOpen(true)}
-                        className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
-                        title="管理搜索源"
-                      >
-                        <Settings size={14} />
-                      </button>
+                    {searchMode === 'internal' ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-search">
+                        <path d="m21 21-4.35-4.35"></path>
+                        <circle cx="11" cy="11" r="8"></circle>
+                      </svg>
+                    ) : (hoveredSearchSource || selectedSearchSource) ? (
+                      <img
+                        src={`https://www.faviconextractor.com/favicon/${new URL((hoveredSearchSource || selectedSearchSource)!.url).hostname}?larger=true`}
+                        alt={(hoveredSearchSource || selectedSearchSource)!.name}
+                        className="w-4 h-4"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLXNlYXJjaCI+PHBhdGggZD0ibTIxIDIxLTQuMzQtNC4zNCI+PC9wYXRoPjxjaXJjbGUgY3g9IjExIiBjeT0iMTEiIHI9IjgiPjwvY2lyY2xlPjwvc3ZnPg==';
+                        }}
+                      />
+                    ) : (
+                      <Search size={16} />
                     )}
                   </div>
 
-                  {/* 搜索框 */}
-                  <div className={`relative w-full max-w-lg ${isMobileSearchOpen ? 'block' : 'hidden'} sm:block`}>
-                    {/* 搜索源选择弹出窗口 */}
-                    {searchMode === 'external' && showSearchSourcePopup && (
-                      <div
-                        className="absolute left-0 top-full mt-2 w-full bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 p-3 z-50"
-                        onMouseEnter={() => setIsPopupHovered(true)}
-                        onMouseLeave={() => setIsPopupHovered(false)}
-                      >
-                        <div className="grid grid-cols-5 sm:grid-cols-5 gap-2">
-                          {externalSearchSources
-                            .filter(source => source.enabled)
-                            .map((source, index) => (
-                              <button
-                                key={index}
-                                onClick={() => handleSearchSourceSelect(source)}
-                                onMouseEnter={() => setHoveredSearchSource(source)}
-                                onMouseLeave={() => setHoveredSearchSource(null)}
-                                className="px-2 py-2 text-sm rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center gap-1 justify-center"
-                              >
-                                <img
-                                  src={`https://www.faviconextractor.com/favicon/${new URL(source.url).hostname}?larger=true`}
-                                  alt={source.name}
-                                  className="w-4 h-4"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLXNlYXJjaCI+PHBhdGggZD0ibTIxIDIxLTQuMzQtNC4zNCI+PC9wYXRoPjxjaXJjbGUgY3g9IjExIiBjeT0iMTEiIHI9IjgiPjwvY2lyY2xlPjwvc3ZnPg==';
-                                  }}
-                                />
-                                <span className="truncate hidden sm:inline">{source.name}</span>
-                              </button>
-                            ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 搜索图标 */}
-                    <div
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 cursor-pointer"
-                      onMouseEnter={() => searchMode === 'external' && setIsIconHovered(true)}
-                      onMouseLeave={() => setIsIconHovered(false)}
-                      onClick={() => {
-                        // 移动端点击事件：显示搜索源选择窗口
-                        if (searchMode === 'external') {
-                          setShowSearchSourcePopup(!showSearchSourcePopup);
-                        }
-                      }}
-                    >
-                      {searchMode === 'internal' ? (
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-search">
-                          <path d="m21 21-4.35-4.35"></path>
-                          <circle cx="11" cy="11" r="8"></circle>
-                        </svg>
-                      ) : (hoveredSearchSource || selectedSearchSource) ? (
-                        <img
-                          src={`https://www.faviconextractor.com/favicon/${new URL((hoveredSearchSource || selectedSearchSource)!.url).hostname}?larger=true`}
-                          alt={(hoveredSearchSource || selectedSearchSource)!.name}
-                          className="w-4 h-4"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLXNlYXJjaCI+PHBhdGggZD0ibTIxIDIxLTQuMzQtNC4zNCI+PC9wYXRoPjxjaXJjbGUgY3g9IjExIiBjeT0iMTEiIHI9IjgiPjwvY2lyY2xlPjwvc3ZnPg==';
-                          }}
-                        />
-                      ) : (
-                        <Search size={16} />
-                      )}
-                    </div>
-
-                    <input
-                      type="text"
-                      placeholder={
-                        searchMode === 'internal'
-                          ? "搜索站内内容..."
-                          : selectedSearchSource
-                            ? `在${selectedSearchSource.name}搜索内容`
-                            : "搜索站外内容..."
+                  <input
+                    type="text"
+                    placeholder={
+                      searchMode === 'internal'
+                        ? "搜索站内内容..."
+                        : selectedSearchSource
+                          ? `在${selectedSearchSource.name}搜索内容`
+                          : "搜索站外内容..."
+                    }
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && searchMode === 'external') {
+                        handleExternalSearch();
                       }
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && searchMode === 'external') {
-                          handleExternalSearch();
-                        }
-                      }}
-                      className="w-full pl-9 pr-4 py-2 rounded-full bg-slate-100 dark:bg-slate-700/50 border-none text-sm focus:ring-2 focus:ring-blue-500 dark:text-white placeholder-slate-400 outline-none transition-all"
-                      // 移动端优化：防止页面缩放
-                      style={{ fontSize: '16px' }}
-                      inputMode="search"
-                      enterKeyHint="search"
-                    />
+                    }}
+                    className="w-full pl-9 pr-4 py-2 rounded-full bg-slate-100 dark:bg-slate-700/50 border-none text-sm focus:ring-2 focus:ring-blue-500 dark:text-white placeholder-slate-400 outline-none transition-all"
+                    // 移动端优化：防止页面缩放
+                    style={{ fontSize: '16px' }}
+                    inputMode="search"
+                    enterKeyHint="search"
+                  />
 
-                    {searchMode === 'external' && searchQuery.trim() && (
-                      <button
-                        onClick={handleExternalSearch}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-blue-500"
-                        title="执行站外搜索"
-                      >
-                        <ExternalLink size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {/* 视图切换控制器 - 移动端：搜索框展开时隐藏，桌面端始终显示 */}
-                <div className={`${isMobileSearchOpen ? 'hidden' : 'flex'} lg:flex items-center bg-slate-100 dark:bg-slate-700 rounded-full p-1`}>
-                  <button
-                    onClick={() => handleViewModeChange('simple')}
-                    className={`px-3 py-1 text-xs font-medium rounded-full transition-all ${siteSettings.cardStyle === 'simple'
-                      ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100'
-                      }`}
-                    title="简约版视图"
-                  >
-                    简约
-                  </button>
-                  <button
-                    onClick={() => handleViewModeChange('detailed')}
-                    className={`px-3 py-1 text-xs font-medium rounded-full transition-all ${siteSettings.cardStyle === 'detailed'
-                      ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100'
-                      }`}
-                    title="详情版视图"
-                  >
-                    详情
-                  </button>
-                </div>
-
-                {/* 主题切换按钮 - 移动端：搜索框展开时隐藏，桌面端始终显示 */}
-                <button
-                  onClick={toggleTheme}
-                  className={`${isMobileSearchOpen ? 'hidden' : 'flex'} lg:flex p-2 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700`}
-                  title={themeMode === 'light' ? '亮色模式（点击切换到暗色）' : themeMode === 'dark' ? '暗色模式（点击切换到自动）' : '自动模式（点击切换到亮色）'}
-                >
-                  {themeMode === 'light' ? <Sun size={18} /> : themeMode === 'dark' ? <Moon size={18} /> : <SunMoon size={18} />}
-                </button>
-
-                {/* 登录/退出按钮 - 移动端：搜索框展开时隐藏，桌面端始终显示 */}
-                <div className={`${isMobileSearchOpen ? 'hidden' : 'flex'}`}>
-                  {!authToken ? (
-                    <button onClick={() => setIsAuthOpen(true)} className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700 px-3 py-1.5 rounded-full text-xs font-medium">
-                      <Cloud size={14} /> <span className="hidden sm:inline">登录</span>
-                    </button>
-                  ) : (
-                    <button onClick={handleLogout} className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700 px-3 py-1.5 rounded-full text-xs font-medium">
-                      <LogOut size={14} /> <span className="hidden sm:inline">退出</span>
+                  {searchMode === 'external' && searchQuery.trim() && (
+                    <button
+                      onClick={handleExternalSearch}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-blue-500"
+                      title="执行站外搜索"
+                    >
+                      <ExternalLink size={14} />
                     </button>
                   )}
                 </div>
-
-                {/* 添加按钮 - 移动端：搜索框展开时隐藏，桌面端始终显示 */}
-                <div className={`${isMobileSearchOpen ? 'hidden' : 'flex'}`}>
-                  <button
-                    onClick={() => { setEditingLink(undefined); setIsModalOpen(true); }}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-full text-sm font-medium shadow-lg shadow-blue-500/30"
-                  >
-                    <Plus size={16} /> <span className="hidden sm:inline">添加</span>
-                  </button>
-                </div>
               </div>
-            </header>
+            </div>
 
-            {/* Content Scroll Area */}
-            <div className="flex-1 overflow-y-auto p-4 lg:p-8 space-y-8">
+            <div className="flex items-center gap-2">
+              {/* 视图切换控制器 - 移动端：搜索框展开时隐藏，桌面端始终显示 */}
+              <div className={`${isMobileSearchOpen ? 'hidden' : 'flex'} lg:flex items-center bg-slate-100 dark:bg-slate-700 rounded-full p-1`}>
+                <button
+                  onClick={() => handleViewModeChange('simple')}
+                  className={`px-3 py-1 text-xs font-medium rounded-full transition-all ${siteSettings.cardStyle === 'simple'
+                    ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100'
+                    }`}
+                  title="简约版视图"
+                >
+                  简约
+                </button>
+                <button
+                  onClick={() => handleViewModeChange('detailed')}
+                  className={`px-3 py-1 text-xs font-medium rounded-full transition-all ${siteSettings.cardStyle === 'detailed'
+                    ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100'
+                    }`}
+                  title="详情版视图"
+                >
+                  详情
+                </button>
+              </div>
 
-              {/* 1. 置顶收藏页面 /top */}
-              {selectedCategory === 'pinned' && !searchQuery && (
-                <section>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <Pin size={16} className="text-blue-500 fill-blue-500" />
-                      <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        置顶收藏
-                      </h2>
-                      <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
-                        {pinnedLinks.length}
-                      </span>
+              {/* 主题切换按钮 - 移动端：搜索框展开时隐藏，桌面端始终显示 */}
+              <button
+                onClick={toggleTheme}
+                className={`${isMobileSearchOpen ? 'hidden' : 'flex'} lg:flex p-2 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700`}
+                title={themeMode === 'light' ? '亮色模式（点击切换到暗色）' : themeMode === 'dark' ? '暗色模式（点击切换到自动）' : '自动模式（点击切换到亮色）'}
+              >
+                {themeMode === 'light' ? <Sun size={18} /> : themeMode === 'dark' ? <Moon size={18} /> : <SunMoon size={18} />}
+              </button>
+
+              {/* 登录/退出按钮 - 移动端：搜索框展开时隐藏，桌面端始终显示 */}
+              <div className={`${isMobileSearchOpen ? 'hidden' : 'flex'}`}>
+                {!authToken ? (
+                  <button onClick={() => setIsAuthOpen(true)} className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700 px-3 py-1.5 rounded-full text-xs font-medium">
+                    <Cloud size={14} /> <span className="hidden sm:inline">登录</span>
+                  </button>
+                ) : (
+                  <button onClick={handleLogout} className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700 px-3 py-1.5 rounded-full text-xs font-medium">
+                    <LogOut size={14} /> <span className="hidden sm:inline">退出</span>
+                  </button>
+                )}
+              </div>
+
+              {/* 添加按钮 - 移动端：搜索框展开时隐藏，桌面端始终显示 */}
+              <div className={`${isMobileSearchOpen ? 'hidden' : 'flex'}`}>
+                <button
+                  onClick={() => { setEditingLink(undefined); setIsModalOpen(true); }}
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-full text-sm font-medium shadow-lg shadow-blue-500/30"
+                >
+                  <Plus size={16} /> <span className="hidden sm:inline">添加</span>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* Content Scroll Area */}
+          <div className="flex-1 overflow-y-auto p-4 lg:p-8 space-y-8">
+
+            {/* 1. 置顶收藏页面 /top */}
+            {selectedCategory === 'pinned' && !searchQuery && (
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Pin size={16} className="text-blue-500 fill-blue-500" />
+                    <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      置顶收藏
+                    </h2>
+                    <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
+                      {pinnedLinks.length}
+                    </span>
+                  </div>
+                  {isSortingPinned ? (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={savePinnedSorting}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-full transition-colors"
+                        title="保存顺序"
+                      >
+                        <Save size={14} />
+                        <span>保存顺序</span>
+                      </button>
+                      <button
+                        onClick={cancelPinnedSorting}
+                        className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+                        title="取消排序"
+                      >
+                        取消
+                      </button>
                     </div>
-                    {isSortingPinned ? (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={savePinnedSorting}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-full transition-colors"
-                          title="保存顺序"
-                        >
-                          <Save size={14} />
-                          <span>保存顺序</span>
-                        </button>
-                        <button
-                          onClick={cancelPinnedSorting}
-                          className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
-                          title="取消排序"
-                        >
-                          取消
-                        </button>
+                  ) : (
+                    <button
+                      onClick={() => setIsSortingPinned(true)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full transition-colors"
+                      title="排序"
+                    >
+                      <GripVertical size={14} />
+                      <span>排序</span>
+                    </button>
+                  )}
+                </div>
+                {pinnedLinks.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                    <Pin size={40} className="opacity-30 mb-4" />
+                    <p>暂无置顶收藏</p>
+                    <p className="text-sm mt-2">右键点击任意链接可将其置顶</p>
+                  </div>
+                ) : isSortingPinned ? (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCorners}
+                    onDragEnd={handlePinnedDragEnd}
+                  >
+                    <SortableContext
+                      items={pinnedLinks.map(link => link.id)}
+                      strategy={rectSortingStrategy}
+                    >
+                      <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
+                        ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+                        : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
+                        }`}>
+                        {pinnedLinks.map(link => (
+                          <SortableLinkCard key={link.id} link={link} />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                ) : (
+                  <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
+                    ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+                    : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
+                    }`}>
+                    {pinnedLinks.map(link => renderLinkCard(link))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* 2. 网站直达首页 - 按分组展示所有有访问权限的标签 */}
+            {selectedCategory === 'all' && !searchQuery && (
+              <>
+                {categories
+                  .filter(cat => !isCategoryLocked(cat.id))
+                  .map(cat => {
+                    const categoryLinks = links.filter(l =>
+                      l.categoryId === cat.id && !isCategoryLocked(l.categoryId)
+                    );
+                    if (categoryLinks.length === 0) return null;
+                    return (
+                      <section key={cat.id}>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <Icon name={cat.icon} size={16} className="text-blue-500" />
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                              {cat.name}
+                            </h2>
+                            <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
+                              {categoryLinks.length}
+                            </span>
+                          </div>
+                          <Link
+                            to={getCategoryPath(cat)}
+                            className="text-xs text-blue-500 hover:text-blue-600 hover:underline"
+                          >
+                            查看全部
+                          </Link>
+                        </div>
+                        <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
+                          ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+                          : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
+                          }`}>
+                          {categoryLinks.slice(0, 12).map(link => renderLinkCard(link))}
+                        </div>
+                      </section>
+                    );
+                  })}
+                {categories.filter(cat => !isCategoryLocked(cat.id)).every(cat =>
+                  links.filter(l => l.categoryId === cat.id).length === 0
+                ) && (
+                    <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                      <Icon name="LayoutGrid" size={40} className="opacity-30 mb-4" />
+                      <p>暂无可访问的链接</p>
+                      <button onClick={() => setIsModalOpen(true)} className="mt-4 text-blue-500 hover:underline">添加一个?</button>
+                    </div>
+                  )}
+              </>
+            )}
+
+            {/* 3. Main Grid - 分类页面和搜索结果 */}
+            {(selectedCategory !== 'all' && selectedCategory !== 'pinned') || searchQuery ? (
+              <section>
+                {(!pinnedLinks.length && !searchQuery && selectedCategory === 'all') && (
+                  <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg flex items-center justify-between">
+                    <div>
+                      <h1 className="text-xl font-bold">早安 👋</h1>
+                      <p className="text-sm opacity-90 mt-1">
+                        {links.length} 个链接 · {categories.length} 个分类
+                      </p>
+                    </div>
+                    <Icon name="Compass" size={48} className="opacity-20" />
+                  </div>
+                )}
+
+                {/* 搜索结果显示 */}
+                {searchQuery ? (
+                  <>
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                        搜索结果
+                        <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
+                          {displayedLinks.length}
+                        </span>
+                      </h2>
+                    </div>
+                    {displayedLinks.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                        <Search size={40} className="opacity-30 mb-4" />
+                        <p>没有找到相关内容</p>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => setIsSortingPinned(true)}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full transition-colors"
-                        title="排序"
-                      >
-                        <GripVertical size={14} />
-                        <span>排序</span>
-                      </button>
+                      <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
+                        ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+                        : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
+                        }`}>
+                        {displayedLinks.map(link => renderLinkCard(link))}
+                      </div>
                     )}
-                  </div>
-                  {pinnedLinks.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-                      <Pin size={40} className="opacity-30 mb-4" />
-                      <p>暂无置顶收藏</p>
-                      <p className="text-sm mt-2">右键点击任意链接可将其置顶</p>
-                    </div>
-                  ) : isSortingPinned ? (
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCorners}
-                      onDragEnd={handlePinnedDragEnd}
-                    >
-                      <SortableContext
-                        items={pinnedLinks.map(link => link.id)}
-                        strategy={rectSortingStrategy}
-                      >
-                        <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                          ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                          : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                          }`}>
-                          {pinnedLinks.map(link => (
-                            <SortableLinkCard key={link.id} link={link} />
-                          ))}
-                        </div>
-                      </SortableContext>
-                    </DndContext>
-                  ) : (
-                    <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                      ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                      : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                      }`}>
-                      {pinnedLinks.map(link => renderLinkCard(link))}
-                    </div>
-                  )}
-                </section>
-              )}
+                  </>
+                ) : (
+                  /* 分类页面显示 - 类似首页布局 */
+                  (() => {
+                    const currentCat = categories.find(c => c.id === selectedCategory);
+                    const childCategories = categories.filter(c => c.parentId === selectedCategory && !isCategoryLocked(c.id));
+                    const directLinks = links.filter(l => l.categoryId === selectedCategory && !isCategoryLocked(l.categoryId));
+                    const hasChildContent = childCategories.length > 0 || directLinks.length > 0;
 
-              {/* 2. 网站直达首页 - 按分组展示所有有访问权限的标签 */}
-              {selectedCategory === 'all' && !searchQuery && (
-                <>
-                  {categories
-                    .filter(cat => !isCategoryLocked(cat.id))
-                    .map(cat => {
-                      const categoryLinks = links.filter(l =>
-                        l.categoryId === cat.id && !isCategoryLocked(l.categoryId)
-                      );
-                      if (categoryLinks.length === 0) return null;
+                    // 如果分类被锁定
+                    if (isCategoryLocked(selectedCategory)) {
                       return (
-                        <section key={cat.id}>
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                              <Icon name={cat.icon} size={16} className="text-blue-500" />
-                              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                {cat.name}
-                              </h2>
-                              <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
-                                {categoryLinks.length}
+                        <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                          <Lock size={40} className="text-amber-400 mb-4" />
+                          <p>该目录已锁定</p>
+                          <button onClick={() => setCatAuthModalData(categories.find(c => c.id === selectedCategory) || null)} className="mt-4 px-4 py-2 bg-amber-500 text-white rounded-lg">输入密码解锁</button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        {/* 当前分类标题和操作按钮 */}
+                        <div className="flex items-center justify-between mb-4">
+                          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                            {currentCat?.name}
+                            <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
+                              {directLinks.length + childCategories.reduce((acc, cat) => acc + links.filter(l => l.categoryId === cat.id).length, 0)}
+                            </span>
+                          </h2>
+                          {!isCategoryLocked(selectedCategory) && (
+                            isSortingMode === selectedCategory ? (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={saveSorting}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-full transition-colors"
+                                  title="保存顺序"
+                                >
+                                  <Save size={14} />
+                                  <span>保存顺序</span>
+                                </button>
+                                <button
+                                  onClick={cancelSorting}
+                                  className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+                                  title="取消排序"
+                                >
+                                  取消
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={toggleBatchEditMode}
+                                  className={`flex items-center gap-1 px-3 py-1.5 text-white text-xs font-medium rounded-full transition-colors ${isBatchEditMode
+                                    ? 'bg-red-600 hover:bg-red-700'
+                                    : 'bg-blue-600 hover:bg-blue-700'
+                                    }`}
+                                  title={isBatchEditMode ? "退出批量编辑" : "批量编辑"}
+                                >
+                                  {isBatchEditMode ? '取消' : '批量编辑'}
+                                </button>
+                                {isBatchEditMode ? (
+                                  <>
+                                    <button
+                                      onClick={handleBatchDelete}
+                                      className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-full transition-colors"
+                                      title="批量删除"
+                                    >
+                                      <Trash2 size={14} />
+                                      <span>批量删除</span>
+                                    </button>
+                                    <button
+                                      onClick={handleSelectAll}
+                                      className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-full transition-colors"
+                                      title="全选/取消全选"
+                                    >
+                                      <CheckSquare size={14} />
+                                      <span>{selectedLinks.size === displayedLinks.length ? '取消全选' : '全选'}</span>
+                                    </button>
+                                    <div className="relative group">
+                                      <button
+                                        className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full transition-colors"
+                                        title="批量移动"
+                                      >
+                                        <Upload size={14} />
+                                        <span>批量移动</span>
+                                      </button>
+                                      <div className="absolute top-full right-0 mt-1 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 z-20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                                        {categories.filter(cat => cat.id !== selectedCategory).map(cat => (
+                                          <button
+                                            key={cat.id}
+                                            onClick={() => handleBatchMove(cat.id)}
+                                            className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 first:rounded-t-lg last:rounded-b-lg"
+                                          >
+                                            {cat.name}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={() => startSorting(selectedCategory)}
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full transition-colors"
+                                    title="排序"
+                                  >
+                                    <GripVertical size={14} />
+                                    <span>排序</span>
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          )}
+                        </div>
+
+                        {/* 子文件夹展示 */}
+                        {childCategories.length > 0 && (
+                          <div className="mb-6">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Icon name="FolderOpen" size={16} className="text-amber-500" />
+                              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                子文件夹
+                              </h3>
+                              <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300 rounded-full">
+                                {childCategories.length}
                               </span>
                             </div>
-                            <Link
-                              to={getCategoryPath(cat)}
-                              className="text-xs text-blue-500 hover:text-blue-600 hover:underline"
-                            >
-                              查看全部
-                            </Link>
-                          </div>
-                          <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                            ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                            : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                            }`}>
-                            {categoryLinks.slice(0, 12).map(link => renderLinkCard(link))}
-                          </div>
-                        </section>
-                      );
-                    })}
-                  {categories.filter(cat => !isCategoryLocked(cat.id)).every(cat =>
-                    links.filter(l => l.categoryId === cat.id).length === 0
-                  ) && (
-                      <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-                        <Icon name="LayoutGrid" size={40} className="opacity-30 mb-4" />
-                        <p>暂无可访问的链接</p>
-                        <button onClick={() => setIsModalOpen(true)} className="mt-4 text-blue-500 hover:underline">添加一个?</button>
-                      </div>
-                    )}
-                </>
-              )}
-
-              {/* 3. Main Grid - 分类页面和搜索结果 */}
-              {(selectedCategory !== 'all' && selectedCategory !== 'pinned') || searchQuery ? (
-                <section>
-                  {(!pinnedLinks.length && !searchQuery && selectedCategory === 'all') && (
-                    <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg flex items-center justify-between">
-                      <div>
-                        <h1 className="text-xl font-bold">早安 👋</h1>
-                        <p className="text-sm opacity-90 mt-1">
-                          {links.length} 个链接 · {categories.length} 个分类
-                        </p>
-                      </div>
-                      <Icon name="Compass" size={48} className="opacity-20" />
-                    </div>
-                  )}
-
-                  {/* 搜索结果显示 */}
-                  {searchQuery ? (
-                    <>
-                      <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                          搜索结果
-                          <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
-                            {displayedLinks.length}
-                          </span>
-                        </h2>
-                      </div>
-                      {displayedLinks.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-                          <Search size={40} className="opacity-30 mb-4" />
-                          <p>没有找到相关内容</p>
-                        </div>
-                      ) : (
-                        <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                          ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                          : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                          }`}>
-                          {displayedLinks.map(link => renderLinkCard(link))}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    /* 分类页面显示 - 类似首页布局 */
-                    (() => {
-                      const currentCat = categories.find(c => c.id === selectedCategory);
-                      const childCategories = categories.filter(c => c.parentId === selectedCategory && !isCategoryLocked(c.id));
-                      const directLinks = links.filter(l => l.categoryId === selectedCategory && !isCategoryLocked(l.categoryId));
-                      const hasChildContent = childCategories.length > 0 || directLinks.length > 0;
-
-                      // 如果分类被锁定
-                      if (isCategoryLocked(selectedCategory)) {
-                        return (
-                          <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-                            <Lock size={40} className="text-amber-400 mb-4" />
-                            <p>该目录已锁定</p>
-                            <button onClick={() => setCatAuthModalData(categories.find(c => c.id === selectedCategory) || null)} className="mt-4 px-4 py-2 bg-amber-500 text-white rounded-lg">输入密码解锁</button>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <>
-                          {/* 当前分类标题和操作按钮 */}
-                          <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                              {currentCat?.name}
-                              <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
-                                {directLinks.length + childCategories.reduce((acc, cat) => acc + links.filter(l => l.categoryId === cat.id).length, 0)}
-                              </span>
-                            </h2>
-                            {!isCategoryLocked(selectedCategory) && (
-                              isSortingMode === selectedCategory ? (
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={saveSorting}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-full transition-colors"
-                                    title="保存顺序"
-                                  >
-                                    <Save size={14} />
-                                    <span>保存顺序</span>
-                                  </button>
-                                  <button
-                                    onClick={cancelSorting}
-                                    className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
-                                    title="取消排序"
-                                  >
-                                    取消
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={toggleBatchEditMode}
-                                    className={`flex items-center gap-1 px-3 py-1.5 text-white text-xs font-medium rounded-full transition-colors ${isBatchEditMode
-                                      ? 'bg-red-600 hover:bg-red-700'
-                                      : 'bg-blue-600 hover:bg-blue-700'
+                            <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
+                              ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+                              : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
+                              }`}>
+                              {childCategories.map(cat => {
+                                const catLinkCount = links.filter(l => l.categoryId === cat.id).length;
+                                const subCatCount = categories.filter(c => c.parentId === cat.id).length;
+                                return (
+                                  <Link
+                                    key={cat.id}
+                                    to={getCategoryPath(cat)}
+                                    className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all ${siteSettings.cardStyle === 'detailed' ? 'min-h-[120px]' : 'min-h-[80px]'
                                       }`}
-                                    title={isBatchEditMode ? "退出批量编辑" : "批量编辑"}
                                   >
-                                    {isBatchEditMode ? '取消' : '批量编辑'}
-                                  </button>
-                                  {isBatchEditMode ? (
-                                    <>
-                                      <button
-                                        onClick={handleBatchDelete}
-                                        className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-full transition-colors"
-                                        title="批量删除"
-                                      >
-                                        <Trash2 size={14} />
-                                        <span>批量删除</span>
-                                      </button>
-                                      <button
-                                        onClick={handleSelectAll}
-                                        className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-full transition-colors"
-                                        title="全选/取消全选"
-                                      >
-                                        <CheckSquare size={14} />
-                                        <span>{selectedLinks.size === displayedLinks.length ? '取消全选' : '全选'}</span>
-                                      </button>
-                                      <div className="relative group">
-                                        <button
-                                          className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full transition-colors"
-                                          title="批量移动"
-                                        >
-                                          <Upload size={14} />
-                                          <span>批量移动</span>
-                                        </button>
-                                        <div className="absolute top-full right-0 mt-1 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 z-20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-                                          {categories.filter(cat => cat.id !== selectedCategory).map(cat => (
-                                            <button
-                                              key={cat.id}
-                                              onClick={() => handleBatchMove(cat.id)}
-                                              className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 first:rounded-t-lg last:rounded-b-lg"
-                                            >
-                                              {cat.name}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </>
-                                  ) : (
-                                    <button
-                                      onClick={() => startSorting(selectedCategory)}
-                                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full transition-colors"
-                                      title="排序"
-                                    >
-                                      <GripVertical size={14} />
-                                      <span>排序</span>
-                                    </button>
-                                  )}
-                                </div>
-                              )
+                                    <Icon name={cat.icon || 'Folder'} size={siteSettings.cardStyle === 'detailed' ? 32 : 24} className="text-amber-500 mb-2" />
+                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 text-center truncate w-full">
+                                      {cat.name}
+                                    </span>
+                                    <span className="text-xs text-slate-400 mt-1">
+                                      {catLinkCount} 链接{subCatCount > 0 ? ` · ${subCatCount} 子文件夹` : ''}
+                                    </span>
+                                    {cat.password && <Lock size={12} className="absolute top-2 right-2 text-amber-500" />}
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 当前分类的直接链接 */}
+                        {directLinks.length > 0 && (
+                          <div className="mb-6">
+                            {childCategories.length > 0 && (
+                              <div className="flex items-center gap-2 mb-3">
+                                <Icon name="Link" size={16} className="text-blue-500" />
+                                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                  当前文件夹链接
+                                </h3>
+                                <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
+                                  {directLinks.length}
+                                </span>
+                              </div>
+                            )}
+                            {isSortingMode === selectedCategory ? (
+                              <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCorners}
+                                onDragEnd={handleDragEnd}
+                              >
+                                <SortableContext
+                                  items={directLinks.map(link => link.id)}
+                                  strategy={rectSortingStrategy}
+                                >
+                                  <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
+                                    ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+                                    : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
+                                    }`}>
+                                    {directLinks.sort((a, b) => (a.order || 0) - (b.order || 0)).map(link => (
+                                      <SortableLinkCard key={link.id} link={link} />
+                                    ))}
+                                  </div>
+                                </SortableContext>
+                              </DndContext>
+                            ) : (
+                              <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
+                                ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+                                : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
+                                }`}>
+                                {directLinks.sort((a, b) => (a.order || 0) - (b.order || 0)).map(link => renderLinkCard(link))}
+                              </div>
                             )}
                           </div>
+                        )}
 
-                          {/* 子文件夹展示 */}
-                          {childCategories.length > 0 && (
-                            <div className="mb-6">
-                              <div className="flex items-center gap-2 mb-3">
-                                <Icon name="FolderOpen" size={16} className="text-amber-500" />
-                                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                                  子文件夹
-                                </h3>
-                                <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300 rounded-full">
-                                  {childCategories.length}
-                                </span>
+                        {/* 子分类的链接（类似首页展示） */}
+                        {childCategories.map(cat => {
+                          const categoryLinks = links.filter(l => l.categoryId === cat.id && !isCategoryLocked(l.categoryId));
+                          if (categoryLinks.length === 0) return null;
+                          return (
+                            <div key={cat.id} className="mb-6">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <Icon name={cat.icon || 'Folder'} size={16} className="text-blue-500" />
+                                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    {cat.name}
+                                  </h3>
+                                  <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
+                                    {categoryLinks.length}
+                                  </span>
+                                  {cat.password && <Lock size={12} className="text-amber-500" />}
+                                </div>
+                                <Link
+                                  to={getCategoryPath(cat)}
+                                  className="text-xs text-blue-500 hover:text-blue-600 hover:underline"
+                                >
+                                  查看全部
+                                </Link>
                               </div>
                               <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
                                 ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
                                 : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
                                 }`}>
-                                {childCategories.map(cat => {
-                                  const catLinkCount = links.filter(l => l.categoryId === cat.id).length;
-                                  const subCatCount = categories.filter(c => c.parentId === cat.id).length;
-                                  return (
-                                    <Link
-                                      key={cat.id}
-                                      to={getCategoryPath(cat)}
-                                      className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all ${siteSettings.cardStyle === 'detailed' ? 'min-h-[120px]' : 'min-h-[80px]'
-                                        }`}
-                                    >
-                                      <Icon name={cat.icon || 'Folder'} size={siteSettings.cardStyle === 'detailed' ? 32 : 24} className="text-amber-500 mb-2" />
-                                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300 text-center truncate w-full">
-                                        {cat.name}
-                                      </span>
-                                      <span className="text-xs text-slate-400 mt-1">
-                                        {catLinkCount} 链接{subCatCount > 0 ? ` · ${subCatCount} 子文件夹` : ''}
-                                      </span>
-                                      {cat.password && <Lock size={12} className="absolute top-2 right-2 text-amber-500" />}
-                                    </Link>
-                                  );
-                                })}
+                                {categoryLinks.slice(0, 12).sort((a, b) => (a.order || 0) - (b.order || 0)).map(link => renderLinkCard(link))}
                               </div>
                             </div>
-                          )}
+                          );
+                        })}
 
-                          {/* 当前分类的直接链接 */}
-                          {directLinks.length > 0 && (
-                            <div className="mb-6">
-                              {childCategories.length > 0 && (
-                                <div className="flex items-center gap-2 mb-3">
-                                  <Icon name="Link" size={16} className="text-blue-500" />
-                                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                                    当前文件夹链接
-                                  </h3>
-                                  <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
-                                    {directLinks.length}
-                                  </span>
-                                </div>
-                              )}
-                              {isSortingMode === selectedCategory ? (
-                                <DndContext
-                                  sensors={sensors}
-                                  collisionDetection={closestCorners}
-                                  onDragEnd={handleDragEnd}
-                                >
-                                  <SortableContext
-                                    items={directLinks.map(link => link.id)}
-                                    strategy={rectSortingStrategy}
-                                  >
-                                    <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                                      ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                                      : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                                      }`}>
-                                      {directLinks.sort((a, b) => (a.order || 0) - (b.order || 0)).map(link => (
-                                        <SortableLinkCard key={link.id} link={link} />
-                                      ))}
-                                    </div>
-                                  </SortableContext>
-                                </DndContext>
-                              ) : (
-                                <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                                  ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                                  : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                                  }`}>
-                                  {directLinks.sort((a, b) => (a.order || 0) - (b.order || 0)).map(link => renderLinkCard(link))}
-                                </div>
-                              )}
-                            </div>
-                          )}
+                        {/* 空状态 */}
+                        {!hasChildContent && (
+                          <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                            <Search size={40} className="opacity-30 mb-4" />
+                            <p>该文件夹为空</p>
+                            <button onClick={() => setIsModalOpen(true)} className="mt-4 text-blue-500 hover:underline">添加一个链接?</button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()
+                )}
+              </section>
+            ) : null}
+          </div>
+        </main>
 
-                          {/* 子分类的链接（类似首页展示） */}
-                          {childCategories.map(cat => {
-                            const categoryLinks = links.filter(l => l.categoryId === cat.id && !isCategoryLocked(l.categoryId));
-                            if (categoryLinks.length === 0) return null;
-                            return (
-                              <div key={cat.id} className="mb-6">
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center gap-2">
-                                    <Icon name={cat.icon || 'Folder'} size={16} className="text-blue-500" />
-                                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                                      {cat.name}
-                                    </h3>
-                                    <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
-                                      {categoryLinks.length}
-                                    </span>
-                                    {cat.password && <Lock size={12} className="text-amber-500" />}
-                                  </div>
-                                  <Link
-                                    to={getCategoryPath(cat)}
-                                    className="text-xs text-blue-500 hover:text-blue-600 hover:underline"
-                                  >
-                                    查看全部
-                                  </Link>
-                                </div>
-                                <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                                  ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                                  : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                                  }`}>
-                                  {categoryLinks.slice(0, 12).sort((a, b) => (a.order || 0) - (b.order || 0)).map(link => renderLinkCard(link))}
-                                </div>
-                              </div>
-                            );
-                          })}
+        <LinkModal
+          isOpen={isModalOpen}
+          onClose={() => { setIsModalOpen(false); setEditingLink(undefined); setPrefillLink(undefined); }}
+          onSave={editingLink ? handleEditLink : handleAddLink}
+          onDelete={editingLink ? handleDeleteLink : undefined}
+          categories={categories}
+          initialData={editingLink || (prefillLink as LinkItem)}
+          aiConfig={aiConfig}
+          defaultCategoryId={selectedCategory !== 'all' ? selectedCategory : undefined}
+        />
 
-                          {/* 空状态 */}
-                          {!hasChildContent && (
-                            <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-                              <Search size={40} className="opacity-30 mb-4" />
-                              <p>该文件夹为空</p>
-                              <button onClick={() => setIsModalOpen(true)} className="mt-4 text-blue-500 hover:underline">添加一个链接?</button>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()
-                  )}
-                </section>
-              ) : null}
-            </div>
-          </main>
+        {/* 右键菜单 */}
+        <ContextMenu
+          isOpen={contextMenu.isOpen}
+          position={contextMenu.position}
+          onClose={closeContextMenu}
+          onCopyLink={copyLinkToClipboard}
+          onShowQRCode={showQRCode}
+          onEditLink={editLinkFromContextMenu}
+          onDeleteLink={deleteLinkFromContextMenu}
+          onTogglePin={togglePinFromContextMenu}
+        />
 
-          <LinkModal
-            isOpen={isModalOpen}
-            onClose={() => { setIsModalOpen(false); setEditingLink(undefined); setPrefillLink(undefined); }}
-            onSave={editingLink ? handleEditLink : handleAddLink}
-            onDelete={editingLink ? handleDeleteLink : undefined}
-            categories={categories}
-            initialData={editingLink || (prefillLink as LinkItem)}
-            aiConfig={aiConfig}
-            defaultCategoryId={selectedCategory !== 'all' ? selectedCategory : undefined}
-          />
-
-          {/* 右键菜单 */}
-          <ContextMenu
-            isOpen={contextMenu.isOpen}
-            position={contextMenu.position}
-            onClose={closeContextMenu}
-            onCopyLink={copyLinkToClipboard}
-            onShowQRCode={showQRCode}
-            onEditLink={editLinkFromContextMenu}
-            onDeleteLink={deleteLinkFromContextMenu}
-            onTogglePin={togglePinFromContextMenu}
-          />
-
-          {/* 二维码模态框 */}
-          <QRCodeModal
-            isOpen={qrCodeModal.isOpen}
-            url={qrCodeModal.url || ''}
-            title={qrCodeModal.title || ''}
-            onClose={() => setQrCodeModal({ isOpen: false, url: '', title: '' })}
-          />
-        </>
-      )}
+        {/* 二维码模态框 */}
+        <QRCodeModal
+          isOpen={qrCodeModal.isOpen}
+          url={qrCodeModal.url || ''}
+          title={qrCodeModal.title || ''}
+          onClose={() => setQrCodeModal({ isOpen: false, url: '', title: '' })}
+        />
+      </>
     </div>
   );
 }
