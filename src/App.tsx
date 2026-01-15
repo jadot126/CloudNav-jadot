@@ -4,7 +4,7 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   Search, Plus, Upload, Moon, Sun, Menu,
   Trash2, Loader2, Cloud, CheckCircle2, AlertCircle,
-  Pin, Settings, Lock, CloudCog, GripVertical, Save, CheckSquare, LogOut, ExternalLink,
+  Pin, Settings, Lock, CloudCog, GripVertical, Save, CheckSquare, LogOut, ExternalLink, Link2,
   ChevronRight, ChevronDown, GitFork, SunMoon
 } from 'lucide-react';
 import {
@@ -47,6 +47,10 @@ interface CategoryTreeItemProps {
   onCategoryClick: (cat: Category) => void;
   getCategoryPath: (cat: Category) => string;
   setSidebarOpen: (open: boolean) => void;
+  // 返回分类的锁定信息：none | direct（自定义密码） | inherited（继承自某祖先）
+  getLockInfo: (catId: string) => { type: 'none' | 'direct' | 'inherited'; sourceName?: string };
+  isCategoryLocked?: (catId: string) => boolean;
+  isAuthenticated?: boolean;
 }
 
 function CategoryTreeItem({
@@ -58,8 +62,14 @@ function CategoryTreeItem({
   onCategoryClick,
   getCategoryPath,
   setSidebarOpen,
+  getLockInfo,
+  isCategoryLocked,
+  isAuthenticated,
 }: CategoryTreeItemProps) {
-  const isLocked = node.password && !unlockedCategoryIds.has(node.id);
+  // 支持三种状态：none / direct / inherited（getLockInfo 表示保护来源，lockedNow 表示当前是否仍被锁住）
+  const lockInfo = getLockInfo(node.id);
+  const isLocked = lockInfo.type !== 'none';
+  const lockedNow = isCategoryLocked ? isCategoryLocked(node.id) : (!isAuthenticated && !unlockedCategoryIds.has(node.id) && (node.password || node.inheritPassword));
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedCategories.has(node.id);
   const isSelected = selectedCategory === node.id;
@@ -86,23 +96,35 @@ function CategoryTreeItem({
         {/* 分组按钮 */}
         <button
           onClick={() => onCategoryClick(node)}
+          title={lockInfo.type === 'inherited' ? `已锁定（继承自：${lockInfo.sourceName}）` : lockInfo.type === 'direct' ? '已锁定：需要输入密码' : undefined}
           className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-xl transition-all group ${isSelected
             ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
             : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
             }`}
         >
           <div className={`p-1.5 rounded-lg transition-colors flex items-center justify-center ${isSelected ? 'bg-blue-100 dark:bg-blue-800' : 'bg-slate-100 dark:bg-slate-800'}`}>
-            {isLocked ? <Lock size={14} className="text-amber-500" /> : <Icon name={node.icon} size={14} />}
+            {lockInfo.type === 'none' && <Icon name={node.icon} size={14} />}
+            {lockInfo.type === 'direct' && (
+              <span title="受保护（需要密码）">
+                <Lock size={14} className={lockedNow ? 'text-amber-500' : 'text-slate-400'} />
+              </span>
+            )}
+            {lockInfo.type === 'inherited' && (
+              <div className="relative" title={`受保护（继承自：${lockInfo.sourceName}）`}>
+                <Lock size={14} className={lockedNow ? 'text-amber-500' : 'text-slate-400'} />
+                <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full flex items-center justify-center bg-transparent ${lockedNow ? 'border border-amber-500 text-amber-500' : 'border border-slate-400 text-slate-400'}`}><Link2 size={8} /></span>
+              </div>
+            )}
           </div>
           <span className="truncate flex-1 text-left text-sm">{node.name}</span>
           {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>}
         </button>
       </div>
 
-      {/* 子分组 */}
+      {/* 子分组（仅展示当前可访问的子分组） */}
       {hasChildren && isExpanded && (
         <div className="mt-1 space-y-1">
-          {node.children.map(child => (
+          {node.children.filter(child => (isCategoryLocked ? !isCategoryLocked(child.id) : getLockInfo(child.id).type === 'none')).map(child => (
             <CategoryTreeItem
               key={child.id}
               node={child}
@@ -113,6 +135,9 @@ function CategoryTreeItem({
               onCategoryClick={onCategoryClick}
               getCategoryPath={getCategoryPath}
               setSidebarOpen={setSidebarOpen}
+              getLockInfo={getLockInfo}
+              isCategoryLocked={isCategoryLocked}
+              isAuthenticated={isAuthenticated}
             />
           ))}
         </div>
@@ -208,6 +233,7 @@ function App() {
 
   // Pending modal (opened while unauthenticated) - reopen after successful login
   const [pendingModal, setPendingModal] = useState<null | 'manage' | 'import' | 'backup' | 'settings' | 'searchConfig'>(null);
+  const [suppressAuthOverlay, setSuppressAuthOverlay] = useState(false);
 
   const [editingLink, setEditingLink] = useState<LinkItem | undefined>(undefined);
   // State for data pre-filled from Bookmarklet
@@ -607,6 +633,17 @@ function App() {
       navigate('/', { replace: true });
     }
   }, [location.pathname, categories, navigate]);
+
+  // 如果直接访问了受保护的分组且未认证，自动打开分组访问密码弹窗（优先于全局管理员认证遮罩）
+  useEffect(() => {
+    if (!selectedCategory) return;
+    const cat = categories.find(c => c.id === selectedCategory);
+    if (!cat) return;
+
+    if (isCategoryLocked(selectedCategory) && !authToken && !catAuthModalData) {
+      setCatAuthModalData(cat);
+    }
+  }, [selectedCategory, categories, authToken, unlockedCategoryIds, catAuthModalData]);
 
   // 构建分组树（用于嵌套显示）
   const categoryTree = useMemo(() => buildCategoryTree(categories), [categories]);
@@ -1145,6 +1182,63 @@ function App() {
     loadFromLocal();
   };
 
+  // 关闭全局认证浮层：关闭弹窗并跳转到首页，避免留在受保护目录
+  const closeAuthOverlay = () => {
+    setIsAuthOpen(false);
+    navigate('/', { replace: true });
+    setSelectedCategory('all');
+  };
+
+  // 打开登录弹窗的统一方法：默认跳转到首页以避免受保护目录遮罩阻挡，并清理 pendingModal
+  const openLoginModal = (opts?: { keepCategory?: boolean }) => {
+    setPendingModal(null);
+    if (!opts?.keepCategory) {
+      setSelectedCategory('all');
+    }
+    setIsAuthOpen(true);
+    if (!opts?.keepCategory) {
+      // navigate after opening modal to avoid the protected-category overlay blocking
+      navigate('/', { replace: true });
+    }
+  };
+
+  // Close handler for CategoryAuthModal: navigate away to nearest accessible ancestor (or home)
+  // and briefly suppress the global auth overlay to avoid a flash.
+  const handleCategoryAuthClose = () => {
+    // If current selected category is locked and user not authenticated, navigate away first
+    if (!authToken && requiresAuthForCategory(selectedCategory)) {
+      const ancestors = getCategoryAncestors(categories, selectedCategory);
+      let foundAncestor: Category | null = null;
+      for (let i = ancestors.length - 1; i >= 0; i--) {
+        if (!isCategoryLocked(ancestors[i].id)) {
+          foundAncestor = ancestors[i];
+          break;
+        }
+      }
+
+      setSuppressAuthOverlay(true);
+
+      if (foundAncestor) {
+        const path = getCategoryPath(foundAncestor);
+        navigate(path, { replace: true });
+        setSelectedCategory(foundAncestor.id);
+      } else {
+        navigate('/', { replace: true });
+        setSelectedCategory('all');
+      }
+
+      // Clear modal after short delay to avoid race with overlay condition
+      setTimeout(() => {
+        setCatAuthModalData(null);
+        setSuppressAuthOverlay(false);
+      }, 120);
+      return;
+    }
+
+    // Otherwise just close modal
+    setCatAuthModalData(null);
+  };
+
   // 分类操作密码验证处理函数
   const handleCategoryActionAuth = async (password: string): Promise<boolean> => {
     try {
@@ -1551,6 +1645,35 @@ function App() {
       }
       return next;
     });
+  };
+
+  // 计算分类的锁定信息（用于显示不同的锁图标）-- 返回“保护来源”信息（基于 inheritPassword 链式继承规则）
+  const getLockInfo = (catId?: string | null): { type: 'none' | 'direct' | 'inherited'; sourceName?: string } => {
+    if (!catId || catId === 'all') return { type: 'none' };
+
+    const cat = categories.find(c => c.id === catId);
+    if (!cat) return { type: 'none' };
+
+    // 如果当前分组有自己的密码，视为直接保护
+    if (cat.password) return { type: 'direct' };
+
+    // 仅当当前分组启用了 inheritPassword 时，沿祖先链按“逐级继承”规则查找带密码的祖先
+    if (!cat.inheritPassword) return { type: 'none' };
+
+    let current: Category | undefined = cat;
+    while (current && current.parentId) {
+      const parent = categories.find(c => c.id === current!.parentId);
+      if (!parent) break;
+
+      if (parent.password) return { type: 'inherited', sourceName: parent.name };
+
+      // 如果父级未设置 inheritPassword，则继承链在此终止
+      if (!parent.inheritPassword) break;
+
+      current = parent;
+    }
+
+    return { type: 'none' };
   };
 
   const handleCategoryClick = (cat: Category) => {
@@ -1971,14 +2094,7 @@ function App() {
   // --- Filtering & Memo ---
 
   // Helper to check if a category is "Locked" (Has password AND not unlocked)
-  // 密码继承逻辑：
-  // 0. 如果管理员已登录，所有分组都视为已解锁
-  // 1. 如果当前分组已解锁，返回 false
-  // 2. 如果当前分组没有密码且没有启用继承，返回 false
-  // 3. 如果启用了继承，检查祖先分组：
-  //    - 如果有祖先分组有密码且已解锁，当前分组也视为已解锁
-  //    - 如果有祖先分组有密码但未解锁，当前分组视为锁定
-  // 4. 如果当前分组有密码但未解锁，返回 true
+  // Password inheritance: only inherit if current category enables inheritPassword and the inheritance chain is continuous
   const isCategoryLocked = (catId: string): boolean => {
     // 管理员已登录时，所有分组都视为已解锁
     if (authToken) return false;
@@ -1989,30 +2105,30 @@ function App() {
     // 如果当前分组已解锁，直接返回 false
     if (unlockedCategoryIds.has(catId)) return false;
 
-    // 检查是否启用了密码继承
-    if (cat.inheritPassword && cat.parentId) {
-      const ancestors = getCategoryAncestors(categories, catId);
-      // 从最近的祖先开始检查
-      for (const ancestor of ancestors) {
-        // 只有祖先有密码时才考虑继承
-        if (ancestor.password) {
-          // 如果有密码的祖先已解锁，当前分组也视为已解锁
-          if (unlockedCategoryIds.has(ancestor.id)) {
-            return false;
-          }
-          // 如果有密码的祖先未解锁，当前分组视为锁定
-          return true;
-        }
+    // 如果当前分组设置了密码，则视为锁定
+    if (cat.password) return true;
+
+    // 仅当当前分组启用了 inheritPassword 时，沿祖先链按“逐级继承”规则查找带密码的祖先
+    if (!cat.inheritPassword) return false;
+
+    let current: Category | undefined = cat;
+    while (current && current.parentId) {
+      const parent = categories.find(c => c.id === current!.parentId);
+      if (!parent) break;
+
+      if (parent.password) {
+        // 如果祖先已被解锁，则视为未被锁定
+        if (unlockedCategoryIds.has(parent.id)) return false;
+        return true;
       }
+
+      // 如果父级未设置 inheritPassword，则继承链在此终止
+      if (!parent.inheritPassword) break;
+
+      current = parent;
     }
 
-    // 如果当前分组没有密码保护，返回 false
-    if (!cat.password) {
-      return false;
-    }
-
-    // 当前分组有密码保护且未解锁
-    return true;
+    return false;
   };
 
   // 检查某个分类是否需要管理员认证（考虑继承规则）
@@ -2243,7 +2359,7 @@ function App() {
   return (
     <div className="flex h-screen overflow-hidden text-slate-900 dark:text-slate-50">
       {/* 认证遮罩层 - 仅在当前视图需要认证时显示（允许访问首页与公开目录） */}
-      {requiresAuth && !authToken && requiresAuthForCategory(selectedCategory) && (
+      {requiresAuth && !authToken && requiresAuthForCategory(selectedCategory) && !catAuthModalData && !suppressAuthOverlay && (
         <div className="fixed inset-0 z-50 bg-white dark:bg-slate-900 flex items-center justify-center">
           <div className="w-full max-w-md p-6">
             <div className="text-center mb-8">
@@ -2257,21 +2373,21 @@ function App() {
                 此目录受保护，请输入管理员密码以继续
               </p>
             </div>
-            <AuthModal isOpen={true} onLogin={handleLogin} />
+            <AuthModal isOpen={true} onLogin={handleLogin} onClose={closeAuthOverlay} />
           </div>
         </div>
       )}
 
       {/* 主要内容 - 允许访问公开目录与首页（即使站点包含受保护的内容） */}
       <>
-        <AuthModal isOpen={isAuthOpen} onLogin={handleLogin} />
-
+        <AuthModal isOpen={isAuthOpen} onLogin={handleLogin} onClose={() => setIsAuthOpen(false)} />
         <CategoryAuthModal
           isOpen={!!catAuthModalData}
           category={catAuthModalData}
           categories={categories}
-          onClose={() => setCatAuthModalData(null)}
+          onClose={handleCategoryAuthClose}
           onUnlock={handleUnlockCategory}
+          onRequestAdminLogin={() => { handleCategoryAuthClose(); openLoginModal({ keepCategory: true }); }}
         />
 
         <CategoryManagerModal
@@ -2388,8 +2504,8 @@ function App() {
               ) : null}
             </div>
 
-            {/* 渲染嵌套分组树 */}
-            {categoryTree.map(node => (
+            {/* 渲染嵌套分组树（仅显示当前可访问的分组） */}
+            {categoryTree.filter(node => !isCategoryLocked(node.id)).map(node => (
               <CategoryTreeItem
                 key={node.id}
                 node={node}
@@ -2400,6 +2516,9 @@ function App() {
                 onCategoryClick={handleCategoryClick}
                 getCategoryPath={getCategoryPath}
                 setSidebarOpen={setSidebarOpen}
+                getLockInfo={getLockInfo}
+                isCategoryLocked={isCategoryLocked}
+                isAuthenticated={!!authToken}
               />
             ))}
           </div>
@@ -2665,7 +2784,7 @@ function App() {
               {/* 登录/退出按钮 - 移动端：搜索框展开时隐藏，桌面端始终显示 */}
               <div className={`${isMobileSearchOpen ? 'hidden' : 'flex'}`}>
                 {!authToken ? (
-                  <button onClick={() => setIsAuthOpen(true)} className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700 px-3 py-1.5 rounded-full text-xs font-medium">
+                  <button onClick={() => openLoginModal()} className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700 px-3 py-1.5 rounded-full text-xs font-medium">
                     <Cloud size={14} /> <span className="hidden sm:inline">登录</span>
                   </button>
                 ) : (
@@ -2884,6 +3003,18 @@ function App() {
                         <div className="flex items-center justify-between mb-4">
                           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
                             {currentCat?.name}
+                            {(() => {
+                              const lock = getLockInfo(selectedCategory);
+                              const lockedNow = isCategoryLocked(selectedCategory);
+                              if (lock.type === 'direct') return <span title="受保护（需要密码）"><Lock size={14} className={lockedNow ? 'text-amber-500 ml-2' : 'text-slate-400 ml-2'} /></span>;
+                              if (lock.type === 'inherited') return (
+                                <span className="ml-2 inline-flex items-center gap-1" title={`受保护（继承自：${lock.sourceName}）`}>
+                                  <Lock size={14} className={lockedNow ? 'text-amber-500' : 'text-slate-400'} />
+                                  <span className={`inline-flex items-center justify-center rounded-full w-4 h-4 ${lockedNow ? 'border border-amber-500 text-amber-500' : 'border border-slate-400 text-slate-400'} bg-transparent`}><Link2 size={8} /></span>
+                                </span>
+                              );
+                              return null;
+                            })()}
                             <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
                               {directLinks.length + childCategories.reduce((acc, cat) => acc + links.filter(l => l.categoryId === cat.id).length, 0)}
                             </span>

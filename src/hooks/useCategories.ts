@@ -60,14 +60,11 @@ export function useCategories({ categories }: UseCategoriesOptions): UseCategori
     });
   }, []);
 
-  // 检查分组是否锁定（支持密码继承）
+  // 检查分组是否锁定（支持链式密码继承）
   // 密码继承逻辑：
-  // 1. 如果当前分组已解锁，返回 false
-  // 2. 如果当前分组没有密码且没有启用继承，返回 false
-  // 3. 如果启用了继承，检查祖先分组：
-  //    - 如果有祖先分组有密码且已解锁，当前分组也视为已解锁
-  //    - 如果有祖先分组有密码但未解锁，当前分组视为锁定
-  // 4. 如果当前分组有密码但未解锁，返回 true
+  // - 如果当前分组已解锁或管理员已登录，视为未锁定
+  // - 如果当前分组有自己密码且未解锁，视为锁定
+  // - 若启用 inheritPassword，则沿着父链逐级查找第一个带密码的祖先，若存在且未被解锁则视为锁定
   const isCategoryLocked = useCallback((catId: string): boolean => {
     const cat = categories.find(c => c.id === catId);
     if (!cat) return false;
@@ -75,30 +72,28 @@ export function useCategories({ categories }: UseCategoriesOptions): UseCategori
     // 如果当前分组已解锁，直接返回 false
     if (unlockedCategoryIds.has(catId)) return false;
 
-    // 检查是否启用了密码继承
-    if (cat.inheritPassword && cat.parentId) {
-      const ancestors = getCategoryAncestors(categories, catId);
-      // 从最近的祖先开始检查
-      for (const ancestor of ancestors) {
-        // 只有祖先有密码时才考虑继承
-        if (ancestor.password) {
-          // 如果有密码的祖先已解锁，当前分组也视为已解锁
-          if (unlockedCategoryIds.has(ancestor.id)) {
-            return false;
-          }
-          // 如果有密码的祖先未解锁，当前分组视为锁定
-          return true;
-        }
-      }
-    }
-
-    // 如果当前分组没有密码保护，返回 false
-    if (!cat.password) {
-      return false;
-    }
-
     // 当前分组有密码保护且未解锁
-    return true;
+    if (cat.password) return true;
+
+    // 如果没有启用继承，返回 false
+    if (!cat.inheritPassword) return false;
+
+    // 启用继承：沿祖先链逐级查找带密码的祖先，要求链路上的每一级都启用了 inheritPassword
+    let current: Category | undefined = cat;
+    while (current && current.parentId) {
+      const parent = categories.find(c => c.id === current!.parentId);
+      if (!parent) break;
+
+      if (parent.password) {
+        if (unlockedCategoryIds.has(parent.id)) return false;
+        return true;
+      }
+
+      if (!parent.inheritPassword) break;
+      current = parent;
+    }
+
+    return false;
   }, [categories, unlockedCategoryIds]);
 
   // 获取分组的完整路径

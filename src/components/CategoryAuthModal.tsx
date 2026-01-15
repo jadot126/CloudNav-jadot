@@ -8,6 +8,7 @@ interface CategoryAuthModalProps {
   category: Category | null;
   categories: Category[];  // 所有分组，用于查找父分组
   onUnlock: (categoryId: string, unlockedAncestorIds?: string[]) => void;
+  onRequestAdminLogin?: () => void;
 }
 
 const CategoryAuthModal: React.FC<CategoryAuthModalProps> = ({
@@ -15,7 +16,8 @@ const CategoryAuthModal: React.FC<CategoryAuthModalProps> = ({
   onClose,
   category,
   categories,
-  onUnlock
+  onUnlock,
+  onRequestAdminLogin
 }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -205,6 +207,17 @@ const CategoryAuthModal: React.FC<CategoryAuthModalProps> = ({
               </>
             )}
           </button>
+
+          {/* 切换到管理员登录 */}
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={() => { handleClose(); onRequestAdminLogin && onRequestAdminLogin(); }}
+              className="text-sm text-blue-600 hover:underline"
+            >
+              管理员登录
+            </button>
+          </div>
         </form>
       </div>
     </div>

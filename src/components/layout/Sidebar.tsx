@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Upload, CloudCog, Settings, Loader2, CheckCircle2, AlertCircle, GitFork, ChevronRight, ChevronDown, Lock } from 'lucide-react';
+import { Upload, CloudCog, Settings, Loader2, CheckCircle2, AlertCircle, GitFork, ChevronRight, ChevronDown, Lock, Link2 } from 'lucide-react';
 import Icon from '../Icon';
 import { Category, CategoryTreeNode } from '../../types';
 
@@ -15,6 +15,11 @@ interface CategoryTreeItemProps {
   onCategoryClick: (cat: Category) => void;
   getCategoryPath: (cat: Category) => string;
   setSidebarOpen: (open: boolean) => void;
+  // 可选的锁信息查询回调（由上层传入以支持继承锁的准确判断）
+  getLockInfo?: (catId: string) => { type: 'none' | 'direct' | 'inherited'; sourceName?: string };
+  // 可选：上层传入的实时锁定判断（优先用于决定是否隐藏分组）
+  isCategoryLocked?: (catId: string) => boolean;
+  isAuthenticated?: boolean;
 }
 
 export function CategoryTreeItem({
@@ -26,8 +31,14 @@ export function CategoryTreeItem({
   onCategoryClick,
   getCategoryPath,
   setSidebarOpen,
+  getLockInfo,
+  isCategoryLocked,
+  isAuthenticated,
 }: CategoryTreeItemProps) {
-  const isLocked = node.password && !unlockedCategoryIds.has(node.id);
+  // 优先使用上层提供的 getLockInfo（更准确）；否则根据 node 自身字段做保守判断（仅用于显示保护来源）
+  const lockInfo = getLockInfo ? getLockInfo(node.id) : (node.password ? { type: 'direct' } : (node.inheritPassword ? { type: 'inherited' } : { type: 'none' }));
+  // 当前是否仍然被锁定（由上层的 isCategoryLocked 回调优先判断），否则根据登录/已解锁集合作为回退判断
+  const lockedNow = isCategoryLocked ? isCategoryLocked(node.id) : (!isAuthenticated && !unlockedCategoryIds.has(node.id) && (node.password || node.inheritPassword));
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedCategories.has(node.id);
   const isSelected = selectedCategory === node.id;
@@ -53,13 +64,25 @@ export function CategoryTreeItem({
         {/* 分组按钮 */}
         <button
           onClick={() => onCategoryClick(node)}
+          title={lockInfo.type === 'inherited' ? '已锁定（继承自父分组）' : lockInfo.type === 'direct' ? '已锁定：需要输入密码' : undefined}
           className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-xl transition-all group ${isSelected
             ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
             : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
             }`}
         >
           <div className={`p-1.5 rounded-lg transition-colors flex items-center justify-center ${isSelected ? 'bg-blue-100 dark:bg-blue-800' : 'bg-slate-100 dark:bg-slate-800'}`}>
-            {isLocked ? <Lock size={14} className="text-amber-500" /> : <Icon name={node.icon} size={14} />}
+            {lockInfo.type === 'none' && <Icon name={node.icon} size={14} />}
+            {lockInfo.type === 'direct' && (
+              <span title="受保护（需要密码）">
+                <Lock size={14} className={lockedNow ? 'text-amber-500' : 'text-slate-400'} />
+              </span>
+            )}
+            {lockInfo.type === 'inherited' && (
+              <div className="relative" title="已锁定（继承自父分组）">
+                <Lock size={14} className={lockedNow ? 'text-amber-500' : 'text-slate-400'} />
+                <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full flex items-center justify-center bg-transparent ${lockedNow ? 'border border-amber-500 text-amber-500' : 'border border-slate-400 text-slate-400'}`}><Link2 size={8} /></span>
+              </div>
+            )}
           </div>
           <span className="truncate flex-1 text-left text-sm">{node.name}</span>
           {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>}
@@ -69,7 +92,7 @@ export function CategoryTreeItem({
       {/* 子分组 */}
       {hasChildren && isExpanded && (
         <div className="mt-1 space-y-1">
-          {node.children.map(child => (
+          {node.children.filter(child => (isCategoryLocked ? !isCategoryLocked(child.id) : (getLockInfo ? getLockInfo(child.id).type === 'none' : ((!child.password && !child.inheritPassword) || unlockedCategoryIds.has(child.id))))).map(child => (
             <CategoryTreeItem
               key={child.id}
               node={child}
@@ -80,6 +103,9 @@ export function CategoryTreeItem({
               onCategoryClick={onCategoryClick}
               getCategoryPath={getCategoryPath}
               setSidebarOpen={setSidebarOpen}
+              getLockInfo={getLockInfo}
+              isCategoryLocked={isCategoryLocked}
+              isAuthenticated={isAuthenticated}
             />
           ))}
         </div>
@@ -104,6 +130,9 @@ interface SidebarProps {
   onSettings: () => void;
   syncStatus: 'idle' | 'offline' | 'saving' | 'saved' | 'error';
   isAuthenticated: boolean;
+  // 可选：上层传入以便在侧边栏做精确的锁定/继承判断
+  getLockInfo?: (catId: string) => { type: 'none' | 'direct' | 'inherited'; sourceName?: string };
+  isCategoryLocked?: (catId: string) => boolean;
   navTitle?: string;
 }
 
@@ -123,8 +152,23 @@ export function Sidebar({
   onSettings,
   syncStatus,
   isAuthenticated,
+  getLockInfo,
+  isCategoryLocked,
   navTitle = 'CloudNav'
 }: SidebarProps) {
+  // Helper: 是否应该在侧边栏展示该分组（优先使用 isCategoryLocked 回调）
+  const nodeIsVisible = (node: CategoryTreeNode) => {
+    if (isCategoryLocked) return !isCategoryLocked(node.id);
+    if (getLockInfo) {
+      const info = getLockInfo(node.id);
+      if (info.type === 'none') return true;
+      // 如果被标记为受保护，但已被解锁或管理员已登录，也应展示
+      if (unlockedCategoryIds.has(node.id) || isAuthenticated) return true;
+      return false;
+    }
+    return ((!node.password && !node.inheritPassword) || unlockedCategoryIds.has(node.id));
+  };
+
   return (
     <aside
       className={`
@@ -167,8 +211,8 @@ export function Sidebar({
           )}
         </div>
 
-        {/* 渲染嵌套分组树 */}
-        {categoryTree.map(node => (
+        {/* 渲染嵌套分组树（基于实时锁定状态只显示可访问的分组） */}
+        {categoryTree.filter(nodeIsVisible).map(node => (
           <CategoryTreeItem
             key={node.id}
             node={node}
@@ -179,6 +223,9 @@ export function Sidebar({
             onCategoryClick={onCategoryClick}
             getCategoryPath={getCategoryPath}
             setSidebarOpen={setSidebarOpen}
+            getLockInfo={getLockInfo}
+            isCategoryLocked={isCategoryLocked}
+            isAuthenticated={isAuthenticated}
           />
         ))}
       </div>
