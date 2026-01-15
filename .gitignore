@@ -1,0 +1,5 @@
+node_modules
+dist
+
+# Mock API 数据目录（本地开发用）
+.mock-data

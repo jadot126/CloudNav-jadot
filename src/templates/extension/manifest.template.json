@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "{{NAV_TITLE}} Pro",
+  "version": "7.6",
+  "minimum_chrome_version": "116",
+  "description": "侧边栏快速导航、右键保存链接、书签双向同步、重复检测",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "sidePanel",
+    "storage",
+    "favicon",
+    "contextMenus",
+    "notifications",
+    "tabs",
+    "bookmarks"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "打开侧边栏 (Ctrl+Shift+E)"
+  },
+  "side_panel": {
+    "default_path": "sidebar.html"
+  },
+  "icons": {
+    "128": "icon.png"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+E",
+        "mac": "Command+Shift+E"
+      },
+      "description": "打开/关闭 CloudNav 侧边栏"
+    }
+  }
+}
