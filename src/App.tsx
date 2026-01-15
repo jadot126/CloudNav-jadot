@@ -123,7 +123,7 @@ function CategoryTreeItem({
 
 // --- 配置项 ---
 // 项目核心仓库地址
-const GITHUB_REPO_URL = 'https://github.com/aabacada/CloudNav-abcd';
+const GITHUB_REPO_URL = 'https://github.com/jadot126/CloudNav-jadot';
 
 const LOCAL_STORAGE_KEY = 'cloudnav_data_cache';
 const AUTH_KEY = 'cloudnav_auth_token';
@@ -2754,12 +2754,12 @@ function App() {
                   {categories.filter(cat => !isCategoryLocked(cat.id)).every(cat =>
                     links.filter(l => l.categoryId === cat.id).length === 0
                   ) && (
-                    <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-                      <Icon name="LayoutGrid" size={40} className="opacity-30 mb-4" />
-                      <p>暂无可访问的链接</p>
-                      <button onClick={() => setIsModalOpen(true)} className="mt-4 text-blue-500 hover:underline">添加一个?</button>
-                    </div>
-                  )}
+                      <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                        <Icon name="LayoutGrid" size={40} className="opacity-30 mb-4" />
+                        <p>暂无可访问的链接</p>
+                        <button onClick={() => setIsModalOpen(true)} className="mt-4 text-blue-500 hover:underline">添加一个?</button>
+                      </div>
+                    )}
                 </>
               )}
 
@@ -2940,9 +2940,8 @@ function App() {
                                     <Link
                                       key={cat.id}
                                       to={getCategoryPath(cat)}
-                                      className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all ${
-                                        siteSettings.cardStyle === 'detailed' ? 'min-h-[120px]' : 'min-h-[80px]'
-                                      }`}
+                                      className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all ${siteSettings.cardStyle === 'detailed' ? 'min-h-[120px]' : 'min-h-[80px]'
+                                        }`}
                                     >
                                       <Icon name={cat.icon || 'Folder'} size={siteSettings.cardStyle === 'detailed' ? 32 : 24} className="text-amber-500 mb-2" />
                                       <span className="text-sm font-medium text-slate-700 dark:text-slate-300 text-center truncate w-full">

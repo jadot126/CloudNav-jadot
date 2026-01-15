@@ -4,7 +4,7 @@ import Icon from '../Icon';
 import { Category, CategoryTreeNode } from '../../types';
 
 // 项目核心仓库地址
-const GITHUB_REPO_URL = 'https://github.com/aabacada/CloudNav-abcd';
+const GITHUB_REPO_URL = 'https://github.com/jadot126/CloudNav-jadot';
 
 interface CategoryTreeItemProps {
   node: CategoryTreeNode;
