@@ -156,13 +156,15 @@ export function Sidebar({
 
         <div className="flex items-center justify-between pt-4 pb-2 px-4">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">分类目录</span>
-          <button
-            onClick={onManageCategories}
-            className="p-1 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-            title="管理分类"
-          >
-            <Settings size={14} />
-          </button>
+          {isAuthenticated && (
+            <button
+              onClick={onManageCategories}
+              className="p-1 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+              title="管理分类"
+            >
+              <Settings size={14} />
+            </button>
+          )}
         </div>
 
         {/* 渲染嵌套分组树 */}
@@ -183,34 +185,36 @@ export function Sidebar({
 
       {/* Footer Actions */}
       <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
-        <div className="grid grid-cols-3 gap-2 mb-2">
-          <button
-            onClick={onImport}
-            className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
-            title="导入书签"
-          >
-            <Upload size={14} />
-            <span>导入</span>
-          </button>
+        {isAuthenticated ? (
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            <button
+              onClick={onImport}
+              className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
+              title="导入书签"
+            >
+              <Upload size={14} />
+              <span>导入</span>
+            </button>
 
-          <button
-            onClick={onBackup}
-            className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
-            title="备份与恢复"
-          >
-            <CloudCog size={14} />
-            <span>备份</span>
-          </button>
+            <button
+              onClick={onBackup}
+              className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
+              title="备份与恢复"
+            >
+              <CloudCog size={14} />
+              <span>备份</span>
+            </button>
 
-          <button
-            onClick={onSettings}
-            className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
-            title="AI 设置"
-          >
-            <Settings size={14} />
-            <span>设置</span>
-          </button>
-        </div>
+            <button
+              onClick={onSettings}
+              className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
+              title="AI 设置"
+            >
+              <Settings size={14} />
+              <span>设置</span>
+            </button>
+          </div>
+        ) : null}
 
         <div className="flex items-center justify-between text-xs px-2 mt-2">
           <div className="flex items-center gap-1 text-slate-400">

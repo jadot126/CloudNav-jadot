@@ -206,6 +206,9 @@ function App() {
   const [isSearchConfigModalOpen, setIsSearchConfigModalOpen] = useState(false);
   const [catAuthModalData, setCatAuthModalData] = useState<Category | null>(null);
 
+  // Pending modal (opened while unauthenticated) - reopen after successful login
+  const [pendingModal, setPendingModal] = useState<null | 'manage' | 'import' | 'backup' | 'settings' | 'searchConfig'>(null);
+
   const [editingLink, setEditingLink] = useState<LinkItem | undefined>(undefined);
   // State for data pre-filled from Bookmarklet
   const [prefillLink, setPrefillLink] = useState<Partial<LinkItem> | undefined>(undefined);
@@ -215,6 +218,30 @@ function App() {
   const [authToken, setAuthToken] = useState<string | null>('');
   const [requiresAuth, setRequiresAuth] = useState<boolean | null>(null); // null表示未检查，true表示需要认证，false表示不需要
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  // Modal-level protection effect: if any protected modal is opened while unauthenticated,
+  // remember the requested modal, close it, and prompt authentication
+  useEffect(() => {
+    if (authToken) return;
+    if (isCatManagerOpen || isImportModalOpen || isBackupModalOpen || isSettingsModalOpen || isSearchConfigModalOpen) {
+      // remember which modal was requested (pick the first)
+      if (isCatManagerOpen) setPendingModal('manage');
+      else if (isImportModalOpen) setPendingModal('import');
+      else if (isBackupModalOpen) setPendingModal('backup');
+      else if (isSettingsModalOpen) setPendingModal('settings');
+      else if (isSearchConfigModalOpen) setPendingModal('searchConfig');
+
+      // close all protected modals
+      setIsCatManagerOpen(false);
+      setIsImportModalOpen(false);
+      setIsBackupModalOpen(false);
+      setIsSettingsModalOpen(false);
+      setIsSearchConfigModalOpen(false);
+
+      // prompt auth
+      setIsAuthOpen(true);
+    }
+  }, [authToken, isCatManagerOpen, isImportModalOpen, isBackupModalOpen, isSettingsModalOpen, isSearchConfigModalOpen]);
 
   // Sort State
   const [isSortingMode, setIsSortingMode] = useState<string | null>(null); // 存储正在排序的分类ID，null表示不在排序模式
@@ -676,13 +703,7 @@ function App() {
         if (authRes.ok) {
           const authData = await authRes.json() as { requiresAuth?: boolean };
           setRequiresAuth(authData.requiresAuth ?? false);
-
-          // 如果需要认证但用户未登录，则不获取数据
-          if (authData.requiresAuth && !savedToken) {
-            setIsCheckingAuth(false);
-            setIsAuthOpen(true);
-            return;
-          }
+          // 不在初始化阶段强制弹出认证窗口，允许用户浏览公开目录
         }
       } catch (e) {
         console.warn("Failed to check auth requirement.", e);
@@ -938,7 +959,12 @@ function App() {
   };
 
   const handleBatchDelete = () => {
-    if (!authToken) { setIsAuthOpen(true); return; }
+    // 如果任何被选中的链接属于有密码保护的分组，则要求管理员登录
+    const anyLocked = Array.from(selectedLinks).some(id => {
+      const l = links.find(link => link.id === id);
+      return l && isCategoryLocked(l.categoryId);
+    });
+    if (anyLocked && !authToken) { setIsAuthOpen(true); return; }
 
     if (selectedLinks.size === 0) {
       alert('请先选择要删除的链接');
@@ -954,7 +980,13 @@ function App() {
   };
 
   const handleBatchMove = (targetCategoryId: string) => {
-    if (!authToken) { setIsAuthOpen(true); return; }
+    // 如果任何被选中的链接属于有密码保护的分组，或目标分组为有密码保护的分组，则要求管理员登录
+    const anySourceLocked = Array.from(selectedLinks).some(id => {
+      const l = links.find(link => link.id === id);
+      return l && isCategoryLocked(l.categoryId);
+    });
+    const targetLocked = isCategoryLocked(targetCategoryId);
+    if ((anySourceLocked || targetLocked) && !authToken) { setIsAuthOpen(true); return; }
 
     if (selectedLinks.size === 0) {
       alert('请先选择要移动的链接');
@@ -1087,6 +1119,16 @@ function App() {
           console.warn("Failed to fetch AI config after login.", e);
         }
 
+        // 登录成功后，如果之前尝试打开某个受保护的弹窗，自动打开它
+        if (pendingModal) {
+          if (pendingModal === 'manage') setIsCatManagerOpen(true);
+          else if (pendingModal === 'import') setIsImportModalOpen(true);
+          else if (pendingModal === 'backup') setIsBackupModalOpen(true);
+          else if (pendingModal === 'settings') setIsSettingsModalOpen(true);
+          else if (pendingModal === 'searchConfig') setIsSearchConfigModalOpen(true);
+          setPendingModal(null);
+        }
+
         return true;
       }
       return false;
@@ -1165,7 +1207,9 @@ function App() {
   };
 
   const handleAddLink = (data: Omit<LinkItem, 'id' | 'createdAt'>) => {
-    if (!authToken) { setIsAuthOpen(true); return; }
+    // 如果目标分类需要密码验证，则要求管理员登录
+    const targetCatId = data.categoryId && data.categoryId !== 'all' ? data.categoryId : undefined;
+    if (targetCatId && isCategoryLocked(targetCatId) && !authToken) { setIsAuthOpen(true); return; }
 
     // 处理URL，确保有协议前缀
     let processedUrl = data.url;
@@ -1226,8 +1270,9 @@ function App() {
   };
 
   const handleEditLink = (data: Omit<LinkItem, 'id' | 'createdAt'>) => {
-    if (!authToken) { setIsAuthOpen(true); return; }
     if (!editingLink) return;
+    // 如果目标分类需要密码验证，则要求管理员登录
+    if (isCategoryLocked(editingLink.categoryId) && !authToken) { setIsAuthOpen(true); return; }
 
     // 处理URL，确保有协议前缀
     let processedUrl = data.url;
@@ -1371,7 +1416,8 @@ function App() {
   );
 
   const handleDeleteLink = (id: string) => {
-    if (!authToken) { setIsAuthOpen(true); return; }
+    const linkToDelete = links.find(l => l.id === id);
+    if (linkToDelete && isCategoryLocked(linkToDelete.categoryId) && !authToken) { setIsAuthOpen(true); return; }
     if (confirm('确定删除此链接吗?')) {
       updateData(links.filter(l => l.id !== id), categories);
     }
@@ -1380,10 +1426,11 @@ function App() {
   const togglePin = (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!authToken) { setIsAuthOpen(true); return; }
 
     const linkToToggle = links.find(l => l.id === id);
     if (!linkToToggle) return;
+
+    if (isCategoryLocked(linkToToggle.categoryId) && !authToken) { setIsAuthOpen(true); return; }
 
     // 如果是设置为置顶，则设置pinnedOrder为当前置顶链接数量
     // 如果是取消置顶，则清除pinnedOrder
@@ -1968,6 +2015,12 @@ function App() {
     return true;
   };
 
+  // 检查某个分类是否需要管理员认证（考虑继承规则）
+  const requiresAuthForCategory = (catId?: string | null): boolean => {
+    if (!catId || catId === 'all') return false;
+    return isCategoryLocked(catId);
+  };
+
   const pinnedLinks = useMemo(() => {
     // Don't show pinned links if they belong to a locked category
     const filteredPinnedLinks = links.filter(l => l.pinned && !isCategoryLocked(l.categoryId));
@@ -2325,13 +2378,15 @@ function App() {
 
               <div className="flex items-center justify-between pt-4 pb-2 px-4">
                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">分类目录</span>
-                <button
-                  onClick={() => { if (!authToken) setIsAuthOpen(true); else setIsCatManagerOpen(true); }}
-                  className="p-1 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-                  title="管理分类"
-                >
-                  <Settings size={14} />
-                </button>
+                {authToken ? (
+                  <button
+                    onClick={() => setIsCatManagerOpen(true)}
+                    className="p-1 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                    title="管理分类"
+                  >
+                    <Settings size={14} />
+                  </button>
+                ) : null}
               </div>
 
               {/* 渲染嵌套分组树 */}
@@ -2353,34 +2408,36 @@ function App() {
             {/* Footer Actions */}
             <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
 
-              <div className="grid grid-cols-3 gap-2 mb-2">
-                <button
-                  onClick={() => { if (!authToken) setIsAuthOpen(true); else setIsImportModalOpen(true); }}
-                  className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
-                  title="导入书签"
-                >
-                  <Upload size={14} />
-                  <span>导入</span>
-                </button>
+              {authToken ? (
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <button
+                    onClick={() => { if (!authToken) setIsAuthOpen(true); else setIsImportModalOpen(true); }}
+                    className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
+                    title="导入书签"
+                  >
+                    <Upload size={14} />
+                    <span>导入</span>
+                  </button>
 
-                <button
-                  onClick={() => { if (!authToken) setIsAuthOpen(true); else setIsBackupModalOpen(true); }}
-                  className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
-                  title="备份与恢复"
-                >
-                  <CloudCog size={14} />
-                  <span>备份</span>
-                </button>
+                  <button
+                    onClick={() => { if (!authToken) setIsAuthOpen(true); else setIsBackupModalOpen(true); }}
+                    className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
+                    title="备份与恢复"
+                  >
+                    <CloudCog size={14} />
+                    <span>备份</span>
+                  </button>
 
-                <button
-                  onClick={() => setIsSettingsModalOpen(true)}
-                  className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
-                  title="AI 设置"
-                >
-                  <Settings size={14} />
-                  <span>设置</span>
-                </button>
-              </div>
+                  <button
+                    onClick={() => { if (!authToken) setIsAuthOpen(true); else setIsSettingsModalOpen(true); }}
+                    className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
+                    title="AI 设置"
+                  >
+                    <Settings size={14} />
+                    <span>设置</span>
+                  </button>
+                </div>
+              ) : null}
 
               <div className="flex items-center justify-between text-xs px-2 mt-2">
                 <div className="flex items-center gap-1 text-slate-400">
@@ -2622,7 +2679,7 @@ function App() {
                 {/* 添加按钮 - 移动端：搜索框展开时隐藏，桌面端始终显示 */}
                 <div className={`${isMobileSearchOpen ? 'hidden' : 'flex'}`}>
                   <button
-                    onClick={() => { if (!authToken) setIsAuthOpen(true); else { setEditingLink(undefined); setIsModalOpen(true); } }}
+                    onClick={() => { setEditingLink(undefined); setIsModalOpen(true); }}
                     className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-full text-sm font-medium shadow-lg shadow-blue-500/30"
                   >
                     <Plus size={16} /> <span className="hidden sm:inline">添加</span>
