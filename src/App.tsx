@@ -5,7 +5,7 @@ import {
   Search, Plus, Upload, Moon, Sun, Menu,
   Trash2, Loader2, Cloud, CheckCircle2, AlertCircle,
   Pin, Settings, Lock, CloudCog, GripVertical, Save, CheckSquare, LogOut, ExternalLink, Link2,
-  ChevronRight, ChevronDown, GitFork, SunMoon
+  ChevronLeft, ChevronRight, ChevronDown, GitFork, SunMoon
 } from 'lucide-react';
 import {
   DndContext,
@@ -26,6 +26,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { LinkItem, Category, DEFAULT_CATEGORIES, INITIAL_LINKS, WebDavConfig, AIConfig, SearchMode, ExternalSearchSource, SearchConfig, SiteSettings, buildCategoryTree, findCategoryByPath, getCategoryAncestors, CategoryTreeNode } from './types';
 import Icon from './components/Icon';
+import AutoFitText from './components/AutoFitText';
 import LinkModal from './components/LinkModal';
 import AuthModal from './components/AuthModal';
 import CategoryManagerModal, { DeleteMode } from './components/CategoryManagerModal';
@@ -170,7 +171,36 @@ function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'auto'>('auto'); // 主题模式：亮色、暗色、自动
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // 手动隐藏侧边栏（仅对桌面宽度生效），持久化到 localStorage
+  const [sidebarManualHidden, setSidebarManualHidden] = useState<boolean>(() => {
+    try { return localStorage.getItem('cloudnav_sidebar_hidden') === 'true'; } catch (e) { return false; }
+  });
+  // 监听当前是否为 lg 及以上尺寸（Tailwind 默认 lg = 1024px）
+  const [isLarge, setIsLarge] = useState<boolean>(() => (typeof window !== 'undefined' ? window.innerWidth >= 1024 : true));
+
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  // 监听窗口大小以决定手动隐藏是否生效
+  useEffect(() => {
+    const onResize = () => setIsLarge(window.innerWidth >= 1024);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // 将手动隐藏状态持久化到 localStorage，并响应其他标签页的变化
+  useEffect(() => {
+    try { localStorage.setItem('cloudnav_sidebar_hidden', sidebarManualHidden ? 'true' : 'false'); } catch (e) { }
+  }, [sidebarManualHidden]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'cloudnav_sidebar_hidden') {
+        setSidebarManualHidden(e.newValue === 'true');
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   // Search Mode State
   const [searchMode, setSearchMode] = useState<SearchMode>('external');
@@ -217,16 +247,33 @@ function App() {
       navTitle: 'CloudNav',
       favicon: '',
       cardStyle: 'detailed' as const,
-      passwordExpiryDays: 7
+      passwordExpiryDays: 7,
+
+      // 新增默认展示设置
+      tagTitleFontSize: 16,
+      titleIconSize: 32,
+      tagDisplayMode: 'inline',
+      tagCardWidth: 'medium'
     };
   });
 
-  // Modals
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Helper: grid column mapping based on card style and selected width
+  const getGridCols = (cardStyle: 'detailed' | 'simple', width: 'small' | 'medium' | 'large' = 'medium') => {
+    if (cardStyle === 'detailed') {
+      if (width === 'small') return 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10';
+      if (width === 'large') return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5';
+      return 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6';
+    }
+
+    if (width === 'small') return 'grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10';
+    if (width === 'large') return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6';
+    return 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8';
+  };
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isCatManagerOpen, setIsCatManagerOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isSearchConfigModalOpen, setIsSearchConfigModalOpen] = useState(false);
   const [catAuthModalData, setCatAuthModalData] = useState<Category | null>(null);
@@ -2203,6 +2250,12 @@ function App() {
     // 根据视图模式决定卡片样式
     const isDetailedView = siteSettings.cardStyle === 'detailed';
 
+    // 可调节的展示设置（来自 SiteSettings）
+    const titleFontSize = siteSettings.tagTitleFontSize ?? 16;
+    const iconSize = siteSettings.titleIconSize ?? 32;
+    const iconInnerSize = Math.max(12, Math.round(iconSize * 0.6));
+    const isStacked = siteSettings.tagDisplayMode === 'stacked';
+
     const style = {
       transform: CSS.Transform.toString(transform),
       transition: isDragging ? 'none' : transition,
@@ -2213,6 +2266,7 @@ function App() {
     return (
       <div
         ref={setNodeRef}
+        data-autofit-id={link.id === 'autofit_test_long' ? 'autofit_test_long' : undefined}
         style={style}
         className={`group relative transition-all duration-200 cursor-grab active:cursor-grabbing min-w-0 max-w-full overflow-hidden hover:shadow-lg hover:shadow-green-100/50 dark:hover:shadow-green-900/20 ${isSortingMode || isSortingPinned
           ? 'bg-green-20 dark:bg-green-900/30 border-green-200 dark:border-green-800'
@@ -2225,21 +2279,27 @@ function App() {
         {...listeners}
       >
         {/* 链接内容 - 移除a标签，改为div防止点击跳转 */}
-        <div className={`flex flex-1 min-w-0 overflow-hidden ${isDetailedView ? 'flex-col' : 'items-center gap-3'
-          }`}>
-          {/* 第一行：图标和标题水平排列 */}
-          <div className={`flex items-center gap-3 mb-2 ${isDetailedView ? '' : 'w-full'
-            }`}>
+        <div className={`flex flex-1 min-w-0 overflow-hidden ${isDetailedView ? 'flex-col' : (isStacked ? 'flex-col' : 'items-center gap-3')}`}>
+
+          {/* 第一行 / 或 堆叠模式：图标和标题 */}
+          <div className={`${isStacked ? 'flex flex-col items-center gap-1 mb-2' : `flex items-center gap-3 mb-2 ${isDetailedView ? '' : 'w-full'}`}`}>
             {/* Icon */}
-            <div className={`text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm font-bold uppercase shrink-0 ${isDetailedView ? 'w-8 h-8 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800' : 'w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-700'
-              }`}>
-              {link.icon ? <img src={link.icon} alt="" className="w-5 h-5" /> : link.title.charAt(0)}
+            <div
+              className={`text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm font-bold uppercase shrink-0 ${isDetailedView ? 'rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800' : 'rounded-lg bg-slate-50 dark:bg-slate-700'}`}
+              style={{ width: iconSize, height: iconSize, minWidth: iconSize, minHeight: iconSize }}
+            >
+              {link.icon ? (
+                <img src={link.icon} alt="" style={{ width: iconInnerSize, height: iconInnerSize }} />
+              ) : (
+                <span style={{ fontSize: Math.max(12, Math.round(iconInnerSize * 0.9)) }}>{link.title.charAt(0)}</span>
+              )}
             </div>
 
             {/* 标题 */}
-            <h3 className={`text-slate-900 dark:text-slate-100 truncate overflow-hidden text-ellipsis ${isDetailedView ? 'text-base' : 'text-sm font-medium text-slate-800 dark:text-slate-200'
-              }`} title={link.title}>
-              {link.title}
+            <h3 className={`flex-1 text-slate-900 dark:text-slate-100 ${isDetailedView ? '' : 'text-sm font-medium text-slate-800 dark:text-slate-200'}`} title={link.title}>
+              <AutoFitText maxFontSize={titleFontSize} minFontSize={12} className="truncate overflow-hidden text-ellipsis">
+                {link.title}
+              </AutoFitText>
             </h3>
           </div>
 
@@ -2260,9 +2320,16 @@ function App() {
     // 根据视图模式决定卡片样式
     const isDetailedView = siteSettings.cardStyle === 'detailed';
 
+    // 可调节的展示设置（来自 SiteSettings）
+    const titleFontSize = siteSettings.tagTitleFontSize ?? 16;
+    const iconSize = siteSettings.titleIconSize ?? 32;
+    const iconInnerSize = Math.max(12, Math.round(iconSize * 0.6));
+    const isStacked = siteSettings.tagDisplayMode === 'stacked';
+
     return (
       <div
         key={link.id}
+        data-autofit-id={link.id === 'autofit_test_long' ? 'autofit_test_long' : undefined}
         className={`group relative transition-all duration-200 hover:shadow-lg hover:shadow-blue-100/50 dark:hover:shadow-blue-900/20 ${isSelected
           ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'
           : 'bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-slate-200 dark:border-slate-700'
@@ -2277,18 +2344,25 @@ function App() {
         {isBatchEditMode ? (
           <div className={`flex flex-1 min-w-0 overflow-hidden h-full ${isDetailedView ? 'flex-col' : 'items-center'
             }`}>
-            {/* 第一行：图标和标题水平排列 */}
-            <div className={`flex items-center gap-3 w-full`}>
+            {/* 第一行 / 或 堆叠模式：图标和标题 */}
+            <div className={`${isStacked ? 'flex flex-col items-center gap-1 w-full' : 'flex items-center gap-3 w-full'}`}>
               {/* Icon */}
-              <div className={`text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm font-bold uppercase shrink-0 ${isDetailedView ? 'w-8 h-8 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800' : 'w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-700'
-                }`}>
-                {link.icon ? <img src={link.icon} alt="" className="w-5 h-5" /> : link.title.charAt(0)}
+              <div
+                className={`text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm font-bold uppercase shrink-0 ${isDetailedView ? 'rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800' : 'rounded-lg bg-slate-50 dark:bg-slate-700'}`}
+                style={{ width: iconSize, height: iconSize, minWidth: iconSize, minHeight: iconSize }}
+              >
+                {link.icon ? (
+                  <img src={link.icon} alt="" style={{ width: iconInnerSize, height: iconInnerSize }} />
+                ) : (
+                  <span style={{ fontSize: Math.max(12, Math.round(iconInnerSize * 0.9)) }}>{link.title.charAt(0)}</span>
+                )}
               </div>
 
               {/* 标题 */}
-              <h3 className={`text-slate-900 dark:text-slate-100 truncate overflow-hidden text-ellipsis ${isDetailedView ? 'text-base' : 'text-sm font-medium text-slate-800 dark:text-slate-200'
-                }`} title={link.title}>
-                {link.title}
+              <h3 className={`flex-1 text-slate-900 dark:text-slate-100 ${isDetailedView ? '' : 'text-sm font-medium text-slate-800 dark:text-slate-200'}`} title={link.title}>
+                <AutoFitText maxFontSize={titleFontSize} minFontSize={12} className="truncate overflow-hidden text-ellipsis">
+                  {link.title}
+                </AutoFitText>
               </h3>
             </div>
 
@@ -2308,18 +2382,25 @@ function App() {
               }`}
             title={isDetailedView ? link.url : (link.description || link.url)} // 详情版视图只显示URL作为tooltip
           >
-            {/* 第一行：图标和标题水平排列 */}
-            <div className={`flex items-center gap-3 w-full`}>
+            {/* 第一行 / 或 堆叠模式：图标和标题 */}
+            <div className={`${isStacked ? 'flex flex-col items-center gap-1 w-full' : 'flex items-center gap-3 w-full'}`}>
               {/* Icon */}
-              <div className={`text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm font-bold uppercase shrink-0 ${isDetailedView ? 'w-8 h-8 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800' : 'w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-700'
-                }`}>
-                {link.icon ? <img src={link.icon} alt="" className="w-5 h-5" /> : link.title.charAt(0)}
+              <div
+                className={`text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm font-bold uppercase shrink-0 ${isDetailedView ? 'rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800' : 'rounded-lg bg-slate-50 dark:bg-slate-700'}`}
+                style={{ width: iconSize, height: iconSize, minWidth: iconSize, minHeight: iconSize }}
+              >
+                {link.icon ? (
+                  <img src={link.icon} alt="" style={{ width: iconInnerSize, height: iconInnerSize }} />
+                ) : (
+                  <span style={{ fontSize: Math.max(12, Math.round(iconInnerSize * 0.9)) }}>{link.title.charAt(0)}</span>
+                )}
               </div>
 
               {/* 标题 */}
-              <h3 className={`text-slate-800 dark:text-slate-200 truncate whitespace-nowrap overflow-hidden text-ellipsis group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors ${isDetailedView ? 'text-base' : 'text-sm font-medium'
-                }`} title={link.title}>
-                {link.title}
+              <h3 className={`flex-1 text-slate-800 dark:text-slate-200 ${isDetailedView ? '' : 'text-sm font-medium'}`} title={link.title}>
+                <AutoFitText maxFontSize={titleFontSize} minFontSize={12} className="truncate whitespace-nowrap overflow-hidden text-ellipsis group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                  {link.title}
+                </AutoFitText>
               </h3>
             </div>
 
@@ -2355,6 +2436,8 @@ function App() {
       </div>
     );
   };
+
+  const showSidebar = isLarge ? !sidebarManualHidden : sidebarOpen;
 
   return (
     <div className="flex h-screen overflow-hidden text-slate-900 dark:text-slate-50">
@@ -2442,6 +2525,14 @@ function App() {
           onSave={(sources) => handleSaveSearchConfig(sources, searchMode)}
         />
 
+        {/* 是否显示侧边栏（桌面受 sidebarManualHidden 控制，移动受 sidebarOpen 控制） */}
+        {(() => {
+          // 仅在渲染时计算，避免重复代码
+          // 当为 lg 及以上时：根据手动隐藏决定；当为移动时：根据 sidebarOpen 决定
+          const showSidebar = isLarge ? !sidebarManualHidden : sidebarOpen;
+          return null; // 这里只是占位，真正使用 showSidebar 在后续 JSX 中
+        })()}
+
         {/* Sidebar Mobile Overlay */}
         {sidebarOpen && (
           <div
@@ -2455,7 +2546,7 @@ function App() {
           className={`
           fixed lg:static inset-y-0 left-0 z-30 w-64 transform transition-transform duration-300 ease-in-out
           bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          ${showSidebar ? 'translate-x-0' : '-translate-x-full'} ${isLarge && sidebarManualHidden ? 'lg:hidden' : ''}
         `}
         >
           {/* Logo */}
@@ -2463,10 +2554,18 @@ function App() {
             <span className="text-xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
               {siteSettings.navTitle || 'CloudNav'}
             </span>
+            {isLarge && !sidebarManualHidden && (
+              <button
+                onClick={() => setSidebarManualHidden(true)}
+                className="ml-auto p-1 text-slate-400 hover:text-slate-700 rounded"
+                title="隐藏侧边栏"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            )}
           </div>
 
-          {/* Categories List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide">
+          <div className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide flex flex-col">
             <Link
               to="/"
               onClick={() => setSidebarOpen(false)}
@@ -2578,6 +2677,16 @@ function App() {
             </div>
           </div>
         </aside>
+
+        {isLarge && sidebarManualHidden && (
+          <button
+            onClick={() => setSidebarManualHidden(false)}
+            title="显示侧边栏"
+            className="fixed left-0 top-20 z-40 p-2 rounded-r-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+          >
+            <ChevronRight size={18} />
+          </button>
+        )}
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-slate-900 overflow-hidden relative">
@@ -2867,10 +2976,7 @@ function App() {
                       items={pinnedLinks.map(link => link.id)}
                       strategy={rectSortingStrategy}
                     >
-                      <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                        ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                        : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                        }`}>
+                      <div className={'grid gap-3 ' + getGridCols(siteSettings.cardStyle, siteSettings.tagCardWidth || 'medium')}>
                         {pinnedLinks.map(link => (
                           <SortableLinkCard key={link.id} link={link} />
                         ))}
@@ -2878,10 +2984,7 @@ function App() {
                     </SortableContext>
                   </DndContext>
                 ) : (
-                  <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                    ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                    : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                    }`}>
+                  <div className={'grid gap-3 ' + getGridCols(siteSettings.cardStyle, siteSettings.tagCardWidth || 'medium')}>
                     {pinnedLinks.map(link => renderLinkCard(link))}
                   </div>
                 )}
@@ -2917,10 +3020,7 @@ function App() {
                             查看全部
                           </Link>
                         </div>
-                        <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                          ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                          : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                          }`}>
+                        <div className={'grid gap-3 ' + getGridCols(siteSettings.cardStyle, siteSettings.tagCardWidth || 'medium')}>
                           {categoryLinks.slice(0, 12).map(link => renderLinkCard(link))}
                         </div>
                       </section>
@@ -2970,10 +3070,7 @@ function App() {
                         <p>没有找到相关内容</p>
                       </div>
                     ) : (
-                      <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                        ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                        : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                        }`}>
+                      <div className={'grid gap-3 ' + getGridCols(siteSettings.cardStyle, siteSettings.tagCardWidth || 'medium')}>
                         {displayedLinks.map(link => renderLinkCard(link))}
                       </div>
                     )}
@@ -3116,10 +3213,7 @@ function App() {
                                 {childCategories.length}
                               </span>
                             </div>
-                            <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                              ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                              : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                              }`}>
+                            <div className={'grid gap-3 ' + getGridCols(siteSettings.cardStyle, siteSettings.tagCardWidth || 'medium')}>
                               {childCategories.map(cat => {
                                 const catLinkCount = links.filter(l => l.categoryId === cat.id).length;
                                 const subCatCount = categories.filter(c => c.parentId === cat.id).length;
@@ -3169,10 +3263,7 @@ function App() {
                                   items={directLinks.map(link => link.id)}
                                   strategy={rectSortingStrategy}
                                 >
-                                  <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                                    ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                                    : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                                    }`}>
+                                  <div className={'grid gap-3 ' + getGridCols(siteSettings.cardStyle, siteSettings.tagCardWidth || 'medium')}>
                                     {directLinks.sort((a, b) => (a.order || 0) - (b.order || 0)).map(link => (
                                       <SortableLinkCard key={link.id} link={link} />
                                     ))}
@@ -3180,10 +3271,7 @@ function App() {
                                 </SortableContext>
                               </DndContext>
                             ) : (
-                              <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                                ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                                : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                                }`}>
+                              <div className={'grid gap-3 ' + getGridCols(siteSettings.cardStyle, siteSettings.tagCardWidth || 'medium')}>
                                 {directLinks.sort((a, b) => (a.order || 0) - (b.order || 0)).map(link => renderLinkCard(link))}
                               </div>
                             )}
@@ -3214,10 +3302,7 @@ function App() {
                                   查看全部
                                 </Link>
                               </div>
-                              <div className={`grid gap-3 ${siteSettings.cardStyle === 'detailed'
-                                ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                                : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
-                                }`}>
+                              <div className={'grid gap-3 ' + getGridCols(siteSettings.cardStyle, siteSettings.tagCardWidth || 'medium')}>
                                 {categoryLinks.slice(0, 12).sort((a, b) => (a.order || 0) - (b.order || 0)).map(link => renderLinkCard(link))}
                               </div>
                             </div>

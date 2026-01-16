@@ -1,5 +1,6 @@
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Upload, CloudCog, Settings, Loader2, CheckCircle2, AlertCircle, GitFork, ChevronRight, ChevronDown, Lock, Link2 } from 'lucide-react';
+import { Upload, CloudCog, Settings, Loader2, CheckCircle2, AlertCircle, GitFork, ChevronLeft, ChevronRight, ChevronDown, Lock, Link2 } from 'lucide-react';
 import Icon from '../Icon';
 import { Category, CategoryTreeNode } from '../../types';
 
@@ -169,121 +170,168 @@ export function Sidebar({
     return ((!node.password && !node.inheritPassword) || unlockedCategoryIds.has(node.id));
   };
 
+  // 手动隐藏（仅对桌面宽度生效），持久化到 localStorage
+  const [manualHidden, setManualHidden] = useState<boolean>(() => {
+    try { return localStorage.getItem('cloudnav_sidebar_hidden') === 'true'; } catch (e) { return false; }
+  });
+  const [isLarge, setIsLarge] = useState<boolean>(() => (typeof window !== 'undefined' ? window.innerWidth >= 1024 : true));
+
+  useEffect(() => {
+    const onResize = () => setIsLarge(window.innerWidth >= 1024);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem('cloudnav_sidebar_hidden', manualHidden ? 'true' : 'false'); } catch (e) { }
+  }, [manualHidden]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'cloudnav_sidebar_hidden') setManualHidden(e.newValue === 'true');
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const showSidebar = isLarge ? !manualHidden : sidebarOpen;
+
   return (
-    <aside
-      className={`
+    <>
+      <aside
+        className={`
         fixed lg:static inset-y-0 left-0 z-30 w-64 transform transition-transform duration-300 ease-in-out
         bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        ${showSidebar ? 'translate-x-0' : '-translate-x-full'} ${isLarge && manualHidden ? 'lg:hidden' : ''}
       `}
-    >
-      {/* Logo */}
-      <div className="h-16 flex items-center px-6 border-b border-slate-100 dark:border-slate-700 shrink-0">
-        <span className="text-xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-          {navTitle}
-        </span>
-      </div>
-
-      {/* Categories List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide">
-        <Link
-          to="/"
-          onClick={() => setSidebarOpen(false)}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${selectedCategory === 'all'
-            ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
-            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-            }`}
-        >
-          <div className="p-1"><Icon name="LayoutGrid" size={18} /></div>
-          <span>置顶网站</span>
-        </Link>
-
-        <div className="flex items-center justify-between pt-4 pb-2 px-4">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">分类目录</span>
-          {isAuthenticated && (
+      >
+        {/* Logo */}
+        <div className="h-16 flex items-center px-6 border-b border-slate-100 dark:border-slate-700 shrink-0">
+          <span className="text-xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+            {navTitle}
+          </span>
+          {isLarge && !manualHidden && (
             <button
-              onClick={onManageCategories}
-              className="p-1 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-              title="管理分类"
+              onClick={() => setManualHidden(true)}
+              className="ml-auto p-1 text-slate-400 hover:text-slate-700 rounded"
+              title="隐藏侧边栏"
             >
-              <Settings size={14} />
+              <ChevronLeft size={16} />
             </button>
           )}
         </div>
 
-        {/* 渲染嵌套分组树（基于实时锁定状态只显示可访问的分组） */}
-        {categoryTree.filter(nodeIsVisible).map(node => (
-          <CategoryTreeItem
-            key={node.id}
-            node={node}
-            selectedCategory={selectedCategory}
-            unlockedCategoryIds={unlockedCategoryIds}
-            expandedCategories={expandedCategories}
-            onToggleExpand={onToggleExpand}
-            onCategoryClick={onCategoryClick}
-            getCategoryPath={getCategoryPath}
-            setSidebarOpen={setSidebarOpen}
-            getLockInfo={getLockInfo}
-            isCategoryLocked={isCategoryLocked}
-            isAuthenticated={isAuthenticated}
-          />
-        ))}
-      </div>
-
-      {/* Footer Actions */}
-      <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
-        {isAuthenticated ? (
-          <div className="grid grid-cols-3 gap-2 mb-2">
-            <button
-              onClick={onImport}
-              className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
-              title="导入书签"
-            >
-              <Upload size={14} />
-              <span>导入</span>
-            </button>
-
-            <button
-              onClick={onBackup}
-              className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
-              title="备份与恢复"
-            >
-              <CloudCog size={14} />
-              <span>备份</span>
-            </button>
-
-            <button
-              onClick={onSettings}
-              className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
-              title="AI 设置"
-            >
-              <Settings size={14} />
-              <span>设置</span>
-            </button>
-          </div>
-        ) : null}
-
-        <div className="flex items-center justify-between text-xs px-2 mt-2">
-          <div className="flex items-center gap-1 text-slate-400">
-            {syncStatus === 'saving' && <Loader2 className="animate-spin w-3 h-3 text-blue-500" />}
-            {syncStatus === 'saved' && <CheckCircle2 className="w-3 h-3 text-green-500" />}
-            {syncStatus === 'error' && <AlertCircle className="w-3 h-3 text-red-500" />}
-            {isAuthenticated ? <span className="text-green-600">已同步</span> : <span className="text-amber-500">离线</span>}
-          </div>
-
-          <a
-            href={GITHUB_REPO_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-            title="Fork this project on GitHub"
+        {/* Categories List */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide flex flex-col">
+          <Link
+            to="/"
+            onClick={() => setSidebarOpen(false)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${selectedCategory === 'all'
+              ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
           >
-            <GitFork size={14} />
-            <span>Fork 项目 v1.7</span>
-          </a>
+            <div className="p-1"><Icon name="LayoutGrid" size={18} /></div>
+            <span>置顶网站</span>
+          </Link>
+
+          <div className="flex items-center justify-between pt-4 pb-2 px-4">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">分类目录</span>
+            {isAuthenticated && (
+              <button
+                onClick={onManageCategories}
+                className="p-1 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                title="管理分类"
+              >
+                <Settings size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* 渲染嵌套分组树（基于实时锁定状态只显示可访问的分组） */}
+          {categoryTree.filter(nodeIsVisible).map(node => (
+            <CategoryTreeItem
+              key={node.id}
+              node={node}
+              selectedCategory={selectedCategory}
+              unlockedCategoryIds={unlockedCategoryIds}
+              expandedCategories={expandedCategories}
+              onToggleExpand={onToggleExpand}
+              onCategoryClick={onCategoryClick}
+              getCategoryPath={getCategoryPath}
+              setSidebarOpen={setSidebarOpen}
+              getLockInfo={getLockInfo}
+              isCategoryLocked={isCategoryLocked}
+              isAuthenticated={isAuthenticated}
+            />
+          ))}
         </div>
-      </div>
-    </aside>
+
+        {/* Footer Actions */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
+          {isAuthenticated ? (
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              <button
+                onClick={onImport}
+                className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
+                title="导入书签"
+              >
+                <Upload size={14} />
+                <span>导入</span>
+              </button>
+
+              <button
+                onClick={onBackup}
+                className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
+                title="备份与恢复"
+              >
+                <CloudCog size={14} />
+                <span>备份</span>
+              </button>
+
+              <button
+                onClick={onSettings}
+                className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
+                title="AI 设置"
+              >
+                <Settings size={14} />
+                <span>设置</span>
+              </button>
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-between text-xs px-2 mt-2">
+            <div className="flex items-center gap-1 text-slate-400">
+              {syncStatus === 'saving' && <Loader2 className="animate-spin w-3 h-3 text-blue-500" />}
+              {syncStatus === 'saved' && <CheckCircle2 className="w-3 h-3 text-green-500" />}
+              {syncStatus === 'error' && <AlertCircle className="w-3 h-3 text-red-500" />}
+              {isAuthenticated ? <span className="text-green-600">已同步</span> : <span className="text-amber-500">离线</span>}
+            </div>
+
+            <a
+              href={GITHUB_REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+              title="Fork this project on GitHub"
+            >
+              <GitFork size={14} />
+              <span>Fork 项目 v1.7</span>
+            </a>
+          </div>
+        </div>
+      </aside>
+
+      {isLarge && manualHidden && (
+        <button
+          onClick={() => setManualHidden(false)}
+          title="显示侧边栏"
+          className="fixed left-0 top-20 z-40 p-2 rounded-r-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+        >
+          <ChevronRight size={18} />
+        </button>
+      )}
+    </>
   );
 }
 

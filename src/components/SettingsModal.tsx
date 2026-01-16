@@ -69,7 +69,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     navTitle: siteSettings?.navTitle || 'CloudNav',
     favicon: siteSettings?.favicon || '',
     cardStyle: siteSettings?.cardStyle || 'detailed',
-    passwordExpiryDays: siteSettings?.passwordExpiryDays ?? 7
+    passwordExpiryDays: siteSettings?.passwordExpiryDays ?? 7,
+
+    // 新增默认展示设置
+    tagTitleFontSize: siteSettings?.tagTitleFontSize ?? 16,
+    titleIconSize: siteSettings?.titleIconSize ?? 32,
+    tagDisplayMode: siteSettings?.tagDisplayMode || 'inline',
+    tagCardWidth: siteSettings?.tagCardWidth || 'medium'
   }));
 
   const [generatedIcons, setGeneratedIcons] = useState<string[]>([]);
@@ -105,7 +111,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         navTitle: siteSettings?.navTitle || 'CloudNav',
         favicon: siteSettings?.favicon || '',
         cardStyle: siteSettings?.cardStyle || 'detailed',
-        passwordExpiryDays: siteSettings?.passwordExpiryDays ?? 7
+        passwordExpiryDays: siteSettings?.passwordExpiryDays ?? 7,
+
+        // 新增展示设置默认值
+        tagTitleFontSize: siteSettings?.tagTitleFontSize ?? 16,
+        titleIconSize: siteSettings?.titleIconSize ?? 32,
+        tagDisplayMode: siteSettings?.tagDisplayMode || 'inline',
+        tagCardWidth: siteSettings?.tagCardWidth || 'medium'
       };
       setLocalSiteSettings(safeSettings);
       if (generatedIcons.length === 0) {
@@ -128,7 +140,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleSiteChange = async (key: keyof SiteSettings, value: any) => {
     setLocalSiteSettings(prev => {
-      const next = { ...prev, [key]: value };
+      const next = { ...prev } as SiteSettings & any;
+
+      if (key === 'tagTitleFontSize') {
+        const num = Math.max(8, Math.min(64, parseInt(value) || 16));
+        next.tagTitleFontSize = num;
+      } else if (key === 'titleIconSize') {
+        const num = Math.max(12, Math.min(320, parseInt(value) || 32));
+        next.titleIconSize = num;
+      } else if (key === 'tagCardWidth') {
+        next.tagCardWidth = value;
+      } else {
+        (next as any)[key] = value;
+      }
 
       // 如果是身份验证过期天数修改，立即保存到 KV 空间
       if (key === 'passwordExpiryDays' && authToken) {
@@ -486,6 +510,66 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                       />
                     </div>
                     <p className="text-xs text-slate-500 mt-1">设置为 0 表示永久不退出，默认 7 天后自动退出</p>
+                  </div>
+
+                  {/* 新增：标签展示设置 */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">标签标题字体大小 (px)</label>
+                    <div className="relative flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="8"
+                        max="64"
+                        value={localSiteSettings.tagTitleFontSize || 16}
+                        onChange={(e) => handleSiteChange('tagTitleFontSize', parseInt(e.target.value) || 16)}
+                        className="w-24 p-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-xs text-slate-500">最大 64px；超出行宽时会自动缩小</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">标题图标大小 (px)</label>
+                    <div className="relative flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="12"
+                        max="320"
+                        value={localSiteSettings.titleIconSize || 32}
+                        onChange={(e) => handleSiteChange('titleIconSize', parseInt(e.target.value) || 32)}
+                        className="w-24 p-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-xs text-slate-500">最大 320px；控制图标容器大小</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">标签展示</label>
+                    <div className="flex gap-2">
+                      <label className={`px-3 py-2 rounded border cursor-pointer ${localSiteSettings.tagDisplayMode === 'inline' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/30 dark:border-blue-500 dark:text-blue-300' : 'border-slate-200 dark:border-slate-700 dark:text-slate-300'}`}>
+                        <input type="radio" name="tagDisplayMode" value="inline" checked={localSiteSettings.tagDisplayMode === 'inline'} onChange={() => handleSiteChange('tagDisplayMode', 'inline')} className="mr-2" /> 图标和标题一行展示
+                      </label>
+                      <label className={`px-3 py-2 rounded border cursor-pointer ${localSiteSettings.tagDisplayMode === 'stacked' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/30 dark:border-blue-500 dark:text-blue-300' : 'border-slate-200 dark:border-slate-700 dark:text-slate-300'}`}>
+                        <input type="radio" name="tagDisplayMode" value="stacked" checked={localSiteSettings.tagDisplayMode === 'stacked'} onChange={() => handleSiteChange('tagDisplayMode', 'stacked')} className="mr-2" /> 图标和标题分两行展示
+                      </label>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">选择标签（链接）在卡片内的图标与标题排列方式。</p>
+                  </div>
+
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">页签整体宽度</label>
+                    <div className="flex gap-2">
+                      <label className={`px-3 py-2 rounded border cursor-pointer ${localSiteSettings.tagCardWidth === 'small' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/30 dark:border-blue-500 dark:text-blue-300' : 'border-slate-200 dark:border-slate-700 dark:text-slate-300'}`}>
+                        <input type="radio" name="tagCardWidth" value="small" checked={localSiteSettings.tagCardWidth === 'small'} onChange={() => handleSiteChange('tagCardWidth', 'small')} className="mr-2" /> 紧凑 (Small)
+                      </label>
+                      <label className={`px-3 py-2 rounded border cursor-pointer ${localSiteSettings.tagCardWidth === 'medium' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/30 dark:border-blue-500 dark:text-blue-300' : 'border-slate-200 dark:border-slate-700 dark:text-slate-300'}`}>
+                        <input type="radio" name="tagCardWidth" value="medium" checked={localSiteSettings.tagCardWidth === 'medium'} onChange={() => handleSiteChange('tagCardWidth', 'medium')} className="mr-2" /> 默认 (Medium)
+                      </label>
+                      <label className={`px-3 py-2 rounded border cursor-pointer ${localSiteSettings.tagCardWidth === 'large' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/30 dark:border-blue-500 dark:text-blue-300' : 'border-slate-200 dark:border-slate-700 dark:text-slate-300'}`}>
+                        <input type="radio" name="tagCardWidth" value="large" checked={localSiteSettings.tagCardWidth === 'large'} onChange={() => handleSiteChange('tagCardWidth', 'large')} className="mr-2" /> 宽 (Large)
+                      </label>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">选择卡片在网格中的展示宽度（紧凑 / 默认 / 宽）。</p>
                   </div>
                 </div>
               </div>

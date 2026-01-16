@@ -36,6 +36,16 @@ export interface SiteSettings {
   favicon: string;
   cardStyle: 'detailed' | 'simple';
   passwordExpiryDays: number;
+
+  // 新增：标签/标题展示相关设置
+  // 标签标题字体大小（像素）
+  tagTitleFontSize?: number;
+  // 标题图标大小（像素）
+  titleIconSize?: number;
+  // 标签展示方式：'inline' 一行展示（图标+标题），'stacked' 两行展示（图标在上，标题在下）
+  tagDisplayMode?: 'inline' | 'stacked';
+  // 页签整体宽度选项（单选）
+  tagCardWidth?: 'small' | 'medium' | 'large';
 }
 
 export interface AppState {
