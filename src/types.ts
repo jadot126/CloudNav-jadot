@@ -46,6 +46,8 @@ export interface SiteSettings {
   tagDisplayMode?: 'inline' | 'stacked';
   // 页签整体宽度选项（单选）
   tagCardWidth?: 'small' | 'medium' | 'large';
+  // 标签卡片最小宽度（像素）
+  tagCardMinWidth?: number;
 }
 
 export interface AppState {

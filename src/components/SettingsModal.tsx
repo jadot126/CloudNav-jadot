@@ -75,7 +75,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     tagTitleFontSize: siteSettings?.tagTitleFontSize ?? 16,
     titleIconSize: siteSettings?.titleIconSize ?? 32,
     tagDisplayMode: siteSettings?.tagDisplayMode || 'inline',
-    tagCardWidth: siteSettings?.tagCardWidth || 'medium'
+    tagCardWidth: siteSettings?.tagCardWidth || 'medium',
+    tagCardMinWidth: siteSettings?.tagCardMinWidth ?? 120
   }));
 
   const [generatedIcons, setGeneratedIcons] = useState<string[]>([]);
@@ -117,7 +118,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         tagTitleFontSize: siteSettings?.tagTitleFontSize ?? 16,
         titleIconSize: siteSettings?.titleIconSize ?? 32,
         tagDisplayMode: siteSettings?.tagDisplayMode || 'inline',
-        tagCardWidth: siteSettings?.tagCardWidth || 'medium'
+        tagCardWidth: siteSettings?.tagCardWidth || 'medium',
+        tagCardMinWidth: siteSettings?.tagCardMinWidth ?? 120
       };
       setLocalSiteSettings(safeSettings);
       if (generatedIcons.length === 0) {
@@ -148,6 +150,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       } else if (key === 'titleIconSize') {
         const num = Math.max(12, Math.min(320, parseInt(value) || 32));
         next.titleIconSize = num;
+      } else if (key === 'tagCardMinWidth') {
+        const num = Math.max(80, Math.min(600, parseInt(value) || 120));
+        next.tagCardMinWidth = num;
       } else if (key === 'tagCardWidth') {
         next.tagCardWidth = value;
       } else {
@@ -570,6 +575,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                     </div>
                     <p className="text-xs text-slate-500 mt-1">选择卡片在网格中的展示宽度（紧凑 / 默认 / 宽）。</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">标签卡片最小宽度 (px)</label>
+                    <div className="relative flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="80"
+                        max="600"
+                        value={localSiteSettings.tagCardMinWidth || 120}
+                        onChange={(e) => handleSiteChange('tagCardMinWidth', parseInt(e.target.value) || 120)}
+                        className="w-24 p-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-xs text-slate-500">设置卡片的最小宽度（像素），建议 80–600px</span>
+                    </div>
                   </div>
                 </div>
               </div>

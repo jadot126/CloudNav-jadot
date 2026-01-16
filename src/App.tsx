@@ -253,7 +253,8 @@ function App() {
       tagTitleFontSize: 16,
       titleIconSize: 32,
       tagDisplayMode: 'inline',
-      tagCardWidth: 'medium'
+      tagCardWidth: 'medium',
+      tagCardMinWidth: 120
     };
   });
 
@@ -2261,11 +2262,13 @@ function App() {
       transition: isDragging ? 'none' : transition,
       opacity: isDragging ? 0.5 : 1,
       zIndex: isDragging ? 1000 : 'auto',
+      minWidth: siteSettings.tagCardMinWidth ? `${siteSettings.tagCardMinWidth}px` : undefined,
     };
 
     return (
       <div
         ref={setNodeRef}
+        data-link-id={link.id}
         data-autofit-id={link.id === 'autofit_test_long' ? 'autofit_test_long' : undefined}
         style={style}
         className={`group relative transition-all duration-200 cursor-grab active:cursor-grabbing min-w-0 max-w-full overflow-hidden hover:shadow-lg hover:shadow-green-100/50 dark:hover:shadow-green-900/20 ${isSortingMode || isSortingPinned
@@ -2329,7 +2332,9 @@ function App() {
     return (
       <div
         key={link.id}
+        data-link-id={link.id}
         data-autofit-id={link.id === 'autofit_test_long' ? 'autofit_test_long' : undefined}
+        style={{ minWidth: siteSettings.tagCardMinWidth ? `${siteSettings.tagCardMinWidth}px` : undefined }}
         className={`group relative transition-all duration-200 hover:shadow-lg hover:shadow-blue-100/50 dark:hover:shadow-blue-900/20 ${isSelected
           ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'
           : 'bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-slate-200 dark:border-slate-700'
