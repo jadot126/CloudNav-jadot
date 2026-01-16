@@ -2334,8 +2334,8 @@ function App() {
           ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'
           : 'bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-slate-200 dark:border-slate-700'
           } ${isBatchEditMode ? 'cursor-pointer' : ''} ${isDetailedView
-            ? 'flex flex-col rounded-2xl border shadow-sm p-4 min-h-[100px] hover:border-blue-400 dark:hover:border-blue-500'
-            : 'flex items-center justify-between rounded-xl border shadow-sm p-3 hover:border-blue-300 dark:hover:border-blue-600'
+            ? 'flex flex-col rounded-2xl border shadow-sm p-1 min-h-[100px] hover:border-blue-400 dark:hover:border-blue-500'
+            : 'flex items-center justify-between rounded-xl border shadow-sm p-1 hover:border-blue-300 dark:hover:border-blue-600'
           }`}
         onClick={() => isBatchEditMode && toggleLinkSelection(link.id)}
         onContextMenu={(e) => handleContextMenu(e, link)}
@@ -2398,7 +2398,7 @@ function App() {
 
               {/* 标题 */}
               <h3 className={`flex-1 text-slate-800 dark:text-slate-200 ${isDetailedView ? '' : 'text-sm font-medium'}`} title={link.title}>
-                <AutoFitText maxFontSize={titleFontSize} minFontSize={12} className="truncate whitespace-nowrap overflow-hidden text-ellipsis group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                <AutoFitText maxFontSize={titleFontSize} minFontSize={6} className="truncate whitespace-nowrap overflow-hidden text-ellipsis group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                   {link.title}
                 </AutoFitText>
               </h3>
