@@ -2357,7 +2357,7 @@ function App() {
                 style={{ width: iconSize, height: iconSize, minWidth: iconSize, minHeight: iconSize }}
               >
                 {link.icon ? (
-                  <img src={link.icon} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={link.icon} alt="" className={`${isDetailedView ? 'rounded-xl' : 'rounded-lg'}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <span style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.max(12, Math.round(iconInnerSize * 0.9)) }}>{link.title.charAt(0)}</span>
                 )}
