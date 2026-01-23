@@ -291,27 +291,6 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
         });
       }
 
-      // 检查密码是否过期
-      const websiteConfigStr = await env.CLOUDNAV_KV.get('website_config');
-      const websiteConfig = websiteConfigStr ? JSON.parse(websiteConfigStr) : { passwordExpiryDays: 7 };
-      const passwordExpiryDays = websiteConfig.passwordExpiryDays || 7;
-
-      if (passwordExpiryDays > 0) {
-        const lastAuthTime = await env.CLOUDNAV_KV.get('last_auth_time');
-        if (lastAuthTime) {
-          const lastTime = parseInt(lastAuthTime);
-          const now = Date.now();
-          const expiryMs = passwordExpiryDays * 24 * 60 * 60 * 1000;
-
-          if (now - lastTime > expiryMs) {
-            return new Response(JSON.stringify({ error: '密码已过期，请重新登录' }), {
-              status: 401,
-              headers: { 'Content-Type': 'application/json', ...corsHeaders },
-            });
-          }
-        }
-      }
-
       // 更新最后认证时间
       await env.CLOUDNAV_KV.put('last_auth_time', Date.now().toString());
 
